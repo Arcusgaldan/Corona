@@ -39,7 +39,7 @@ for i in tabelaSuspeitos.index: #Passando por cada suspeito
 
 
 tabelaSuspeitosIncorretos = pd.DataFrame(tabelaSuspeitosIncorretos)
-tabelaSuspeitos.to_excel('lista_realmente_suspeitos.xls')
-tabelaSuspeitosIncorretos.to_excel('suspeitos_incorretos.xls')
+tabelaSuspeitos.to_excel('lista_realmente_suspeitos.xlsx')
+tabelaSuspeitosIncorretos.to_excel('suspeitos_incorretos.xlsx')
         
 

@@ -52,11 +52,11 @@ for row in listaTotalDispensacoes.itertuples():
         appendTabelaAuxiliar(listaDispensacoesIncorreto, row, "Já possui resultado com até " + str(paramDiasResultado) + " dias de diferença")
         listaTotalDispensacoes.drop(row.Index, inplace=True)
         
-with pd.ExcelWriter('Dispensacoes x Agravos.xlsx') as writerDisp:
+with pd.ExcelWriter('Dispensacoes x Agravos.xlsx', engine='openpyxl') as writerDisp:
     listaTotalDispensacoes["DATA DISP."] = listaTotalDispensacoes["DATA DISP."].dt.strftime('%d/%m/%Y')
     listaTotalDispensacoes.to_excel(writerDisp, index=False)
     
-with pd.ExcelWriter('Incorreto Dispensacoes x Agravos.xlsx') as writerIncorreto:
+with pd.ExcelWriter('Incorreto Dispensacoes x Agravos.xlsx', engine='openpyxl') as writerIncorreto:
     listaDispensacoesIncorreto = pd.DataFrame(listaDispensacoesIncorreto)
     listaDispensacoesIncorreto["DATA DISP."] = pd.to_datetime(listaDispensacoesIncorreto["DATA DISP."])
     listaDispensacoesIncorreto["DATA DISP."] = listaTotalDispensacoes["DATA DISP."].dt.strftime('%d/%m/%Y')
