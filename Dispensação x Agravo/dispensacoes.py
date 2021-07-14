@@ -99,7 +99,7 @@ for row in listaTotalDispensacoes.itertuples():
             else:
                 #print("Porém não estava dentro dos dias do parâmetro")
                 continue
-        elif rowAgravo[paramColunaSituacaoAgravoAssessor] == "CONFIRMADO" or rowAgravo[paramColunaSituacaoAgravoAssessor] == "NEGATIVO":
+        elif rowAgravo[paramColunaSituacaoAgravoAssessor] == "CONFIRMADO" or rowAgravo[paramColunaSituacaoAgravoAssessor] == "NEGATIVO" or rowAgravo[paramColunaSituacaoAgravoAssessor] == "DESCARTADO":
             dataResultado = rowAgravo[paramColunaDataResultadoAssessor]
             dataTeste = row[paramColunaDataDispensacao]
             difDias = abs((dataResultado - dataTeste).days)

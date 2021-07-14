@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Jun 24 11:53:47 2021
-
 @author: Info
 """
 import pandas as pd
@@ -10,11 +9,11 @@ def filtroOutros(coluna):
     filtro = pd.Series()
     for key in cnesUnidades:
         if filtro.empty:
-            filtro = coluna != int(key)
+            filtro = coluna != key
             #print("Aplicando o primeiro filtro, key = " + key)
         else:
             #print("Aplicando o resto do filtro, key = " + key)
-            filtro = filtro & (coluna != int(key))
+            filtro = filtro & (coluna != key)
             #teste = filtro.where(filtro == False).dropna(how='all')
             #print("Falsos = " + str(teste.size))
     return filtro
@@ -37,7 +36,25 @@ cnesUnidades = {"2035731": "Ibitu",
 "7565577": "Idoso",
 "7585020": "Nova Barretos",
 "2784572": "ARE I",
-"2043211": "CMR"
+'9662561': 'HANS',
+'2092611': 'SANTA CASA',
+'2090236': 'PIOXII',
+'6316344': 'CENTRO DIAGNOSTICO MEDICO ASSOCIADO',
+'2074176': 'CEDIB',
+'3142531': 'HOSPITAL SAO JORGE',
+'7909837': 'INSTITUTO RESPIRATORIO BARRETOS',
+'5124700': 'LABORAMAS ',
+'2052970': 'LABORATORIO ESTIMA',
+'3549208': 'LABORATORIO SUZUKI',
+'9567771': 'SAO FRANCISCO (Avenida 43)',
+'9344209': 'SAO FRANCISCO (Avenida 7)',
+'9371508': 'SAUDE MED',
+"2043211": "CMR",
+'419907': 'DROGA RAIA (Av.43)',
+'yaah_cardoso@hotmail.com': 'DROGA RAIA (Frade Monte)',
+'robertamap@yahoo.com.br': 'DROGA RAIA (Centro)',
+'maicon.douglas19@hotmail.com': 'DROGARIA SÃO PAULO (City Barretos)',
+'marcela@ltaseguranca.com.br': 'LTA '
 }
 
 planilha = pd.read_excel("planilha.xlsx")
@@ -57,15 +74,18 @@ while True:
         print("Valor inválido")
         continue
     break
+
+planilha.iloc[:, coluna - 1] = planilha.iloc[:, coluna - 1].apply(str)
         
 
 if opcao == "1":
     for key in cnesUnidades:
-        planilhaUnidade = planilha.where(planilha.iloc[:, coluna - 1] == int(key)).dropna(how='all')
+        #planilhaUnidade = planilha.where(planilha.iloc[:, coluna - 1] == int(key)).dropna(how='all')
+        planilhaUnidade = planilha.where(planilha.iloc[:, coluna - 1] == key).dropna(how='all')
         if not planilhaUnidade.empty:
             print("Achei uma planilha não vazia, unidade = " + cnesUnidades[key])
             with pd.ExcelWriter("Unidades/" + cnesUnidades[key] + '.xlsx') as writer:
-                planilhaUnidade.to_excel(writer, cnesUnidades[key], index=False)
+                planilhaUnidade.to_excel(writer, index=False)
         else:
             print("Unidade veio vazia: " + cnesUnidades[key])
     filtro = filtroOutros(planilha.iloc[:, coluna - 1])
@@ -80,10 +100,11 @@ if opcao == "1":
 else:
     with pd.ExcelWriter('Planilha Organizada.xlsx') as writer:
         for key in cnesUnidades:
-            planilhaUnidade = planilha.where(planilha.iloc[:, coluna - 1] == int(key)).dropna(how='all')
+            #planilhaUnidade = planilha.where(planilha.iloc[:, coluna - 1] == int(key)).dropna(how='all')
+            planilhaUnidade = planilha.where(planilha.iloc[:, coluna - 1] == key).dropna(how='all')
             if not planilhaUnidade.empty:
                 print("Achei uma planilha não vazia, unidade = " + cnesUnidades[key])
-                planilhaUnidade.to_excel(writer, cnesUnidades[key], index=False)
+                planilhaUnidade.to_excel(writer, index=False)
             else:
                 print("Unidade veio vazia: " + cnesUnidades[key])
         filtro = filtroOutros(planilha.iloc[:, coluna - 1])

@@ -1,0 +1,5 @@
+disp sem agravo - Resultado do script "Dispensações x Agravos"
+lista total assessor - Resultado do script "Suspeitos", planilha "total_e_realmente suspeitos"
+lista total dispensacoes - Relatório UT11 do material 18057
+lista total saidas - Relatório UT07
+vacivida - Exportação do Vacivida

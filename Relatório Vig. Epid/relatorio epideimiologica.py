@@ -34,7 +34,6 @@ listaUnidades = [
 
 codigosVacina = [17969, 17970, 17971, 17972]
 
-
 paramDataAtual = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 paramDataTruncAtual = date.today()
 paramTamanhoSemana = 7
@@ -86,7 +85,7 @@ def dispensacoes(unidade, semana):
     return totalDispensacoes["QTD DISP."].sum()
 
 def vacivida(unidade, semana):
-    filtro = listaVacivida["CNES_ESTABELECIMENTO"] == str(unidade["CNES"])
+    filtro = listaVacivida["CNES_ESTABELECIMENTO"] == unidade["CNES"]
     if semana:
         filtro = filtro & (listaVacivida["DATA_APLICACAO_VACINA"] <= paramDataAtual) & (listaVacivida["DATA_APLICACAO_VACINA"] >= paramDataAtual - timedelta(days=paramTamanhoSemana))
     retornoVacivida = listaVacivida.where(filtro).dropna(how='all')
