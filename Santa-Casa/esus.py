@@ -141,7 +141,7 @@ tabelaTotalEsus['CPF'], tabelaTotalEsus['CNS'] = formataCpfCns(tabelaTotalEsus['
 tabelaTotalEsus['Nome Completo'] = tabelaTotalEsus['Nome Completo'].str.upper() #Transforma a coluna de nome em Caixa Alta
 tabelaTotalEsus = limpaUtf8(tabelaTotalEsus) #Limpa os caracteres que vem "bugados" do eSUS por conta de acentos e 'ç'
 tabelaTotalEsus = tabelaTotalEsus.where(tabelaTotalEsus['MunicIpio de ResidEncia'] == "Barretos").dropna(how='all') #Filtra apenas pelo município de residência Barretos
-tabelaTotalEsus = tabelaTotalEsus.where(tabelaTotalEsus['EvoluCAo Caso'] != "Cancelado") #Retira as notificações canceladas
+tabelaTotalEsus = tabelaTotalEsus.where(tabelaTotalEsus['EvoluCAo Caso'] != "Cancelado").dropna(how='all') #Retira as notificações canceladas
 
 endReadEsus = timer()
 print("Terminei de ler a tabela do eSUS aos " + str(endReadEsus - start) + " segundos.")

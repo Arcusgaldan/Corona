@@ -162,6 +162,8 @@ for unidade in listaUnidades:
     ws['B3'] = unidade["Dispensações sem Agravo Total"]
     ws['A4'] = "Dispensações sem Agravo (Semana)"
     ws['B4'] = unidade["Dispensações sem Agravo Semana"]
+    if unidade["Testes Dispensados Semana"] > 0:
+        ws['C4'] = "{:.2f}".format((unidade["Dispensações sem Agravo Semana"] / unidade["Testes Dispensados Semana"]) * 100) + "%"
     
     ws['A6'] = "Notificações sem Data de Inicio de Sintomas (Total)"
     ws['B6'] = unidade["Sem Sintomas Total"]
