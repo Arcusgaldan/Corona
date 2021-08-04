@@ -19,6 +19,7 @@ from datetime import datetime
 import numpy as np
 from timeit import default_timer as timer
 import os
+import re
 
 teste = None
 
@@ -60,7 +61,9 @@ def acharId(row, tabela, tabelaEsus):
         filtro2 = tabela['CNS'] == Cns.strip()
     else:
         filtro2 = False
-        
+    
+    if(type(Nome) is float):
+        Nome = None
     if(Nome is not None and Dn is not None):
         filtro3 = tabela['Paciente'] == Nome.strip()
         filtro4 = tabela['Data Nasc.'] == Dn
@@ -147,22 +150,41 @@ def formataImpressao(tabela, tipo):
     else:
         return tabela
 
+# def descobreSituacao(tabela, row):
+#     if row[paramColunaResultadoPCREsus] == "Positivo" or (pd.isnull(row[paramColunaResultadoPCREsus]) and (row[paramColunaResultadoTotaisEsus] == "Reagente" or row[paramColunaResultadoIgaEsus] == "Reagente" or row[paramColunaResultadoPCREsus] == "Reagente")):
+#         tabela.at[row.Index, "SITUACAO"] = "POSITIVO"
+#         return "POSITIVO"
+#     if row[paramColunaResultadoPCREsus] == "Negativo" or (pd.isnull(row[paramColunaResultadoPCREsus]) and (row[paramColunaResultadoTotaisEsus] == "NAo Reagente" or row[paramColunaResultadoIgaEsus] == "NAo Reagente" or row[paramColunaResultadoPCREsus] == "NAo Reagente")):
+#         tabela.at[row.Index, "SITUACAO"] = "NEGATIVO"
+#         return "NEGATIVO"
+#     if(pd.isnull(row[paramColunaResultadoPCREsus]) and pd.isnull(row[paramColunaResultadoTotaisEsus]) and pd.isnull(row[paramColunaResultadoIgaEsus]) and pd.isnull(row[paramColunaResultadoPCREsus])):
+#         if(row[paramColunaClassifFinalEsus] != "Descartado"):
+#             tabela.at[row.Index, "SITUACAO"] = "SUSPEITO"
+#             return "SUSPEITO"
+#         else:
+#             tabela.at[row.Index, "SITUACAO"] = "DESCARTADO"
+#             return "DESCARTADO"
+#     tabela.at[row.Index, "SITUACAO"] = "SEM SITUACAO"
+#     return "SEM SITUACAO"
+
 def descobreSituacao(tabela, row):
-    if row[paramColunaResultadoPCREsus] == "Positivo" or (pd.isnull(row[paramColunaResultadoPCREsus]) and (row[paramColunaResultadoTotaisEsus] == "Reagente" or row[paramColunaResultadoIgaEsus] == "Reagente" or row[paramColunaResultadoPCREsus] == "Reagente")):
-        tabela.at[row.Index, "SITUACAO"] = "POSITIVO"
-        return "POSITIVO"
-    if row[paramColunaResultadoPCREsus] == "Negativo" or (pd.isnull(row[paramColunaResultadoPCREsus]) and (row[paramColunaResultadoTotaisEsus] == "NAo Reagente" or row[paramColunaResultadoIgaEsus] == "NAo Reagente" or row[paramColunaResultadoPCREsus] == "NAo Reagente")):
-        tabela.at[row.Index, "SITUACAO"] = "NEGATIVO"
-        return "NEGATIVO"
-    if(pd.isnull(row[paramColunaResultadoPCREsus]) and pd.isnull(row[paramColunaResultadoTotaisEsus]) and pd.isnull(row[paramColunaResultadoIgaEsus]) and pd.isnull(row[paramColunaResultadoPCREsus])):
-        if(row[paramColunaClassifFinalEsus] != "Descartado"):
+    if row[paramColunaTipoTesteEsus] == "RT-PCR" or row[paramColunaTipoTesteEsus] == "TESTE RAPIDO - ANTIGENO":
+        if row[paramColunaResultadoPCREsus] == "Positivo" or row[paramColunaResultadoIgmEsus] == "Reagente" or row[paramColunaResultadoTotaisEsus] == "Reagente":
+            tabela.at[row.Index, "SITUACAO"] = "POSITIVO"
+            return "POSITIVO"
+        elif row[paramColunaResultadoPCREsus] == "Negativo" or row[paramColunaResultadoIgmEsus] == "NAo Reagente" or row[paramColunaResultadoTotaisEsus] == "NAo Reagente":
+            tabela.at[row.Index, "SITUACAO"] = "NEGATIVO"
+            return "NEGATIVO"
+        else:
             tabela.at[row.Index, "SITUACAO"] = "SUSPEITO"
             return "SUSPEITO"
-        else:
-            tabela.at[row.Index, "SITUACAO"] = "DESCARTADO"
-            return "DESCARTADO"
-    tabela.at[row.Index, "SITUACAO"] = "SEM SITUACAO"
-    return "SEM SITUACAO"
+    elif row[paramColunaTipoTesteEsus] == "TESTE RAPIDO - ANTICORPO":
+        tabela.at[row.Index, "SITUACAO"] = "INCONCLUSIVO" #TODO
+        return "INCONCLUSIVO" #TODO
+    else:
+        tabela.at[row.Index, "SITUACAO"] = "INCONCLUSIVO"
+        return "INCONCLUSIVO"
+        
 
 def trataSuspeito(row, notifAssessor, tabela, tabelaIncorreta):
     if "CONFIRMADO" in notifAssessor["SituaCAo"].values:
@@ -238,6 +260,26 @@ def converteFiltro(tabela, lblCnes, lblEmail, listaFiltro):
     
     return filtroFinal
 
+def segundoEmHora(segundos):
+    horas = int(segundos / 3600) if int(segundos / 3600) >= 10 else "0" + str(int(segundos / 3600))
+    minutos = int((segundos % 3600) / 60) if int((segundos % 3600) / 60) >= 10 else "0" + str(int((segundos % 3600) / 60))
+    segundos = int((segundos % 3600) % 60) if int((segundos % 3600) % 60) >= 10 else "0" + str(int((segundos % 3600) % 60))
+    stringTempo = str(horas) + ":" + str(minutos) + ":" + str(segundos)
+    return stringTempo
+
+def printTabela(nomeArquivo, tabelaCorreta, tabelaIncorreta):
+    with pd.ExcelWriter(nomeArquivo + ' ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writer:
+        tabelaPos = tabelaCorreta.where(tabelaCorreta["SITUACAO"] == "POSITIVO").dropna(how='all')
+        tabelaPos = formataImpressao(tabelaPos, "CORRETO")
+        tabelaPos.to_excel(writer, "Positivos", index=False)    
+        
+        tabelaNeg = tabelaCorreta.where(tabelaCorreta["SITUACAO"] == "NEGATIVO").dropna(how='all')
+        tabelaNeg = formataImpressao(tabelaNeg, "CORRETO")
+        tabelaNeg.to_excel(writer, "Negativos", index=False)
+            
+        tabelaIncorreta = formataImpressao(tabelaIncorreta, "INCORRETO")
+        tabelaIncorreta.to_excel(writer, "Incorretos", index=False)
+
 paramDiasAtras = 16 #Parâmetro que define quantos dias atrás ele considera na planilha de suspeitos e monitoramento (ex: notificações de até X dias atrás serão analisadas, antes disso serão ignoradas)
 paramDiasNegativo = 5 #Parâmetro que define quantos dias atrás uma notificacao de negativo deve ser considerada "a mesma" notificacao. Acima desse parâmetro deve ser considerada uma nova notificacao (agora também usada para descartados)
 paramColunaNomeEsus = 30 ##Parâmetro que define qual é o index da coluna que possui o nome completo do paciente no eSUS (parâmetro necessário pois o itertuples não permite indexacao por nome de coluna com espaço)
@@ -269,6 +311,21 @@ paramColunaBairroEndEsus = 37
 paramColunaRacaEsus = 38
 paramColunaDataSintomasEsus = 64
 paramColunaNotifNomeEsus = 70
+paramColunaTipoTesteEsus = 4
+
+flagsUnidades = {}
+flagsUnidades["stc"] = False
+flagsUnidades["pio"] = False
+flagsUnidades["hans"] = False
+flagsUnidades["int"] = False
+flagsUnidades["ext"] = False
+
+mapOpcaoToUnidade = {}
+mapOpcaoToUnidade["1"] = "stc"
+mapOpcaoToUnidade["2"] = "pio"
+mapOpcaoToUnidade["3"] = "hans"
+mapOpcaoToUnidade["4"] = "int"
+mapOpcaoToUnidade["5"] = "ext"
 
 paramColunaDataNotifAssessor = 11 #Parâmetro igual ao paramColunaDataNotifEsus porém para o Assessor
 paramDataAtual = datetime.today() #Parâmetro que define qual é a data atual para o script fazer a comparacao dos dias para trás (padrão: datetime.today() = data atual do sistema)
@@ -276,6 +333,28 @@ paramDataAtual = datetime.today() #Parâmetro que define qual é a data atual pa
 print("Data de hoje: " + paramDataAtual.strftime("%d/%m/%Y"))
 print("Data de " + str(paramDiasAtras) + " dias atrás: " + (paramDataAtual - timedelta(days=paramDiasAtras)).strftime("%d/%m/%Y"))
 
+regexOpcoes = "\d[\,\s\d]*$"
+regex = re.compile(regexOpcoes, re.IGNORECASE)
+
+while True:
+    print("1 - Santa Casa\n2 - Pio XII\n3 - HANS\n4 - Internas\n5 - Externas\n6 - Todas\n")
+    print("Insira as opções desejadas, separadas por vírgula: ", end="")
+    opcoes = input()
+    
+    if regex.match(opcoes):
+        opcoes = opcoes.replace(' ', '')
+        opcoes = opcoes.split(',')
+        break
+    else:
+        print("Opções inválidas, por favor tente novamente.\n")
+
+if "6" in opcoes:
+    for key in flagsUnidades.keys():
+        flagsUnidades[key] = True
+else:
+    for opcao in opcoes:
+        flagsUnidades[mapOpcaoToUnidade[opcao]] = True
+ 
 start = timer()
 
 tabelaTotalEsus = pd.read_excel("lista total esus.xlsx", dtype={'CPF': np.unicode_, 'CNS': np.unicode_, 'Nome Completo': np.unicode_}).sort_values(by="Data da NotificaÃ§Ã£o", ignore_index=True) #Lista total das notificações do eSus
@@ -283,26 +362,44 @@ tabelaTotalEsus['CPF'], tabelaTotalEsus['CNS'] = formataCpfCns(tabelaTotalEsus['
 tabelaTotalEsus['Nome Completo'] = tabelaTotalEsus['Nome Completo'].str.upper() #Transforma a coluna de nome em Caixa Alta
 tabelaTotalEsus = limpaUtf8(tabelaTotalEsus) #Limpa os caracteres que vem "bugados" do eSUS por conta de acentos e 'ç'
 tabelaTotalEsus = tabelaTotalEsus.where(tabelaTotalEsus['MunicIpio de ResidEncia'] == "Barretos").dropna(how='all') #Filtra apenas pelo município de residência Barretos
-tabelaTotalEsus = tabelaTotalEsus.where(tabelaTotalEsus['EvoluCAo Caso'] != "Cancelado").dropna(how='all') #Retira as notificações canceladas
-tabelaTotalEsus = tabelaTotalEsus.where((tabelaTotalEsus['Teste SorolOgico'] != "Anticorpos Totais") & (tabelaTotalEsus['Teste SorolOgico'] != "IgG, Anticorpos Totais") & (tabelaTotalEsus['Teste SorolOgico'] != "Anticorpos Totais, IgG")).dropna(how='all')
+#tabelaTotalEsus = tabelaTotalEsus.where(tabelaTotalEsus['EvoluCAo Caso'] != "Cancelado").dropna(how='all') #Retira as notificações canceladas
+#tabelaTotalEsus = tabelaTotalEsus.where((tabelaTotalEsus['Teste SorolOgico'] != "Anticorpos Totais") & (tabelaTotalEsus['Teste SorolOgico'] != "IgG, Anticorpos Totais") & (tabelaTotalEsus['Teste SorolOgico'] != "Anticorpos Totais, IgG")).dropna(how='all')
 tabelaTotalEsus.insert(len(tabelaTotalEsus.columns), "SITUACAO", None)
 tabelaTotalEsus.insert(len(tabelaTotalEsus.columns), "IDS ASSESSOR", None)
 
-listaFiltroStc = {"cnes": [2092611], "email": []}
-filtroStc = converteFiltro(tabelaTotalEsus, 'Notificante CNES', 'Notificante Email', listaFiltroStc)
-listaFiltroPio = {"cnes": [2090236], "email": []}
-filtroPio = converteFiltro(tabelaTotalEsus, 'Notificante CNES', 'Notificante Email', listaFiltroPio)
-listaFiltroHans = {"cnes": [9662561], "email": []}
-filtroHans = converteFiltro(tabelaTotalEsus, 'Notificante CNES', 'Notificante Email', listaFiltroHans)
-listaFiltroExternas = {"cnes": [9344209, 2052970, 9567771, 9371508, 3549208, 7909837, 3142531, 5124700, 6316344, 419907, 2074176],
-                  "email": ["maicon.douglas19@hotmail.com", "yaah_cardoso@hotmail.com", "robertamap@yahoo.com.br", "barretos2@dpsp.com.br", "marcela@ltaseguranca.com.br"]}
-filtroExternas = converteFiltro(tabelaTotalEsus, 'Notificante CNES', 'Notificante Email', listaFiltroExternas)
-listaFiltroInternas = {"cnes": [2035731 , 2048736 , 2048744 , 2053314 , 2053062 , 2061473 , 2064081 , 2064103 , 2093642 , 2093650 , 2784572 , 2784580 , 2784599 , 5562325 , 5562333 , 7035861 , 7122217 , 7565577 , 7585020 , 2053306],
-                  "email": ["machado.vl@bol.com.br" , "marcioli@bol.com.br" , "marcosnascimento32@outlook.com"]}
-filtroInternas = converteFiltro(tabelaTotalEsus, 'Notificante CNES', 'Notificante Email', listaFiltroInternas)
+filtrosValidos = []
 
+if flagsUnidades['stc']:
+    listaFiltroStc = {"cnes": [2092611], "email": []}
+    filtroStc = converteFiltro(tabelaTotalEsus, 'Notificante CNES', 'Notificante Email', listaFiltroStc)
+    filtrosValidos.append(filtroStc)
+if flagsUnidades['pio']:
+    listaFiltroPio = {"cnes": [2090236], "email": []}
+    filtroPio = converteFiltro(tabelaTotalEsus, 'Notificante CNES', 'Notificante Email', listaFiltroPio)
+    filtrosValidos.append(filtroPio)
+if flagsUnidades['hans']:
+    listaFiltroHans = {"cnes": [9662561], "email": []}
+    filtroHans = converteFiltro(tabelaTotalEsus, 'Notificante CNES', 'Notificante Email', listaFiltroHans)
+    filtrosValidos.append(filtroHans)
+if flagsUnidades['ext']:
+    listaFiltroExternas = {"cnes": [9344209, 2052970, 9567771, 9371508, 3549208, 7909837, 3142531, 5124700, 6316344, 419907, 2074176],
+                      "email": ["maicon.douglas19@hotmail.com", "yaah_cardoso@hotmail.com", "robertamap@yahoo.com.br", "barretos2@dpsp.com.br", "marcela@ltaseguranca.com.br"]}
+    filtroExternas = converteFiltro(tabelaTotalEsus, 'Notificante CNES', 'Notificante Email', listaFiltroExternas)
+    filtrosValidos.append(filtroExternas)
+if flagsUnidades['int']:
+    listaFiltroInternas = {"cnes": [2035731, 2048736, 2048744, 2053314, 2053062, 2061473, 2064081, 2064103, 2093642, 2093650, 2784572, 2784580, 2784599, 5562325, 5562333, 7035861, 7122217, 7565577, 7585020, 2053306],
+                      "email": ["machado.vl@bol.com.br", "marcioli@bol.com.br", "marcosnascimento32@outlook.com"]}
+    filtroInternas = converteFiltro(tabelaTotalEsus, 'Notificante CNES', 'Notificante Email', listaFiltroInternas)
+    filtrosValidos.append(filtroInternas)
 
-tabelaTotalEsus = tabelaTotalEsus.where((filtroStc) | (filtroPio) | (filtroHans) | (filtroExternas) | (filtroInternas)).dropna(how='all')
+filtroUnidades = pd.Series(dtype=object)
+for filtro in filtrosValidos:
+    if filtroUnidades.empty:
+        filtroUnidades = filtro
+    else:
+        filtroUnidades = (filtroUnidades) | (filtro)
+
+tabelaTotalEsus = tabelaTotalEsus.where(filtroUnidades).dropna(how='all')
 qtdNotif = len(tabelaTotalEsus)
 porcAtual = 0
 
@@ -320,26 +417,32 @@ print("Terminei de ler a tabela do Assessor aos " + str(endReadAssessor - start)
 tabelaTotalEsusIncorreta = []
 countLinhas = 0
 porcentil = round(qtdNotif / 100)
+startProcessamento = timer()
 
 for row in tabelaTotalEsus.itertuples():
-    notifAssessor = acharId(row, tabelaTotalAssessor, tabelaTotalEsus)
     situacao = descobreSituacao(tabelaTotalEsus, row)
+    if situacao != "INCONCLUSIVO" and situacao != "SUSPEITO":
+        notifAssessor = acharId(row, tabelaTotalAssessor, tabelaTotalEsus)
+    
     if situacao == "POSITIVO":
         trataPositivo(row, notifAssessor, tabelaTotalEsus, tabelaTotalEsusIncorreta)
     elif situacao == "NEGATIVO":
         trataNegativo(row, notifAssessor, tabelaTotalEsus, tabelaTotalEsusIncorreta)
-    elif situacao == "SEM SITUACAO":
-        print("Achei uma notificação sem situação")        
+        
     countLinhas += 1
     if countLinhas >= (porcAtual + 1) * porcentil:
         porcAtual += 1
         os.system('cls')
         porcTimer = timer()
-        print("Concluido: " + str(porcAtual) + "% aos " + str(porcTimer - start) + " segundos.\n" + str(countLinhas) + " linhas lidas de " + str(qtdNotif) + " total.")
+        tempoAtual = porcTimer - startProcessamento
+        velocEstimada = countLinhas / tempoAtual
+        tempoEstimadoTotal = (qtdNotif - countLinhas) / velocEstimada
+        stringTempoEstimado = segundoEmHora(tempoEstimadoTotal)
+        print("Concluido: " + str(porcAtual) + "% aos " + "{:.0f}".format(tempoAtual) + " segundos (desde o início do laço).\n" + str(countLinhas) + " linhas lidas de " + str(qtdNotif) + " total.\nVelocidade estimada: " + "{:.2f}".format(velocEstimada) + " linhas por segundo.\nTempo estimado: " + stringTempoEstimado + " para conlusão\n\n")
 
 
 endLaco = timer()
-print("Terminei de processar o eSUS aos " + str(endLaco - start) + " segundos.")
+print("Terminei de processar o eSUS aos " + str(endLaco - start) + " segundos.\nTotal de " + segundoEmHora(endLaco - start) + " de processamento.")
 
 tabelaTotalEsusIncorreta = pd.DataFrame(tabelaTotalEsusIncorreta)
 
@@ -347,80 +450,88 @@ with pd.ExcelWriter('Debug eSUS ' + paramDataAtual.strftime("%d.%m") + '.xlsx') 
     tabelaTotalEsus.to_excel(writerDebug, "Corretos", index=False)
     tabelaTotalEsusIncorreta.to_excel(writerDebug, "Incorretos", index=False)
 
-tabelaStc = tabelaTotalEsus.where(filtroStc).dropna(how='all')
-tabelaPio = tabelaTotalEsus.where(filtroPio).dropna(how='all')
-tabelaHans = tabelaTotalEsus.where(filtroHans).dropna(how='all')
-tabelaExternas = tabelaTotalEsus.where(filtroExternas).dropna(how='all')
-tabelaInternas = tabelaTotalEsus.where(filtroInternas).dropna(how='all')
+if flagsUnidades['stc']:
+    tabelaStc = tabelaTotalEsus.where(filtroStc).dropna(how='all')
+    filtroStcInc = converteFiltro(tabelaTotalEsusIncorreta, 'Notificante CNES', 'Notificante Email', listaFiltroStc)
+    tabelaStcIncorreta = tabelaTotalEsusIncorreta.where(filtroStcInc).dropna(how='all')
+    printTabela("Santa Casa", tabelaStc, tabelaStcIncorreta)
+if flagsUnidades['pio']:
+    tabelaPio = tabelaTotalEsus.where(filtroPio).dropna(how='all')
+    filtroPioInc = converteFiltro(tabelaTotalEsusIncorreta, 'Notificante CNES', 'Notificante Email', listaFiltroPio)
+    tabelaPioIncorreta = tabelaTotalEsusIncorreta.where(filtroPioInc).dropna(how='all')
+    printTabela("Pio XII", tabelaPio, tabelaPioIncorreta)
+if flagsUnidades['hans']:
+    tabelaHans = tabelaTotalEsus.where(filtroHans).dropna(how='all')
+    filtroHansInc = converteFiltro(tabelaTotalEsusIncorreta, 'Notificante CNES', 'Notificante Email', listaFiltroHans)
+    tabelaHansIncorreta = tabelaTotalEsusIncorreta.where(filtroHansInc).dropna(how='all')
+    printTabela("HANS", tabelaHans, tabelaHansIncorreta)
+if flagsUnidades['ext']:
+    tabelaExternas = tabelaTotalEsus.where(filtroExternas).dropna(how='all')
+    filtroExternasInc = converteFiltro(tabelaTotalEsusIncorreta, 'Notificante CNES', 'Notificante Email', listaFiltroExternas)
+    tabelaExternasIncorreta = tabelaTotalEsusIncorreta.where(filtroExternasInc).dropna(how='all')
+    printTabela("Externas", tabelaExternas, tabelaExternasIncorreta)
+if flagsUnidades['int']:
+    tabelaInternas = tabelaTotalEsus.where(filtroInternas).dropna(how='all')
+    filtroInternasInc = converteFiltro(tabelaTotalEsusIncorreta, 'Notificante CNES', 'Notificante Email', listaFiltroInternas)
+    tabelaInternasIncorreta = tabelaTotalEsusIncorreta.where(filtroInternasInc).dropna(how='all')
+    printTabela("Internas", tabelaInternas, tabelaInternasIncorreta)
 
-filtroStcInc = converteFiltro(tabelaTotalEsusIncorreta, 'Notificante CNES', 'Notificante Email', listaFiltroStc)
-filtroPioInc = converteFiltro(tabelaTotalEsusIncorreta, 'Notificante CNES', 'Notificante Email', listaFiltroPio)
-filtroHansInc = converteFiltro(tabelaTotalEsusIncorreta, 'Notificante CNES', 'Notificante Email', listaFiltroHans)
-filtroExternasInc = converteFiltro(tabelaTotalEsusIncorreta, 'Notificante CNES', 'Notificante Email', listaFiltroExternas)
-filtroInternasInc = converteFiltro(tabelaTotalEsusIncorreta, 'Notificante CNES', 'Notificante Email', listaFiltroInternas)
-
-tabelaStcIncorreta = tabelaTotalEsusIncorreta.where(filtroStcInc).dropna(how='all')
-tabelaPioIncorreta = tabelaTotalEsusIncorreta.where(filtroPioInc).dropna(how='all')
-tabelaHansIncorreta = tabelaTotalEsusIncorreta.where(filtroHansInc).dropna(how='all')
-tabelaExternasIncorreta = tabelaTotalEsusIncorreta.where(filtroExternasInc).dropna(how='all')
-tabelaInternasIncorreta = tabelaTotalEsusIncorreta.where(filtroInternasInc).dropna(how='all')
-
-with pd.ExcelWriter('Santa Casa ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerStc:
-    tabelaStcPos = tabelaStc.where(tabelaStc["SITUACAO"] == "POSITIVO").dropna(how='all')
-    tabelaStcPos = formataImpressao(tabelaStcPos, "CORRETO")
-    tabelaStcPos.to_excel(writerStc, "Positivos", index=False)    
+# with pd.ExcelWriter('Santa Casa ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerStc:
+#     tabelaStcPos = tabelaStc.where(tabelaStc["SITUACAO"] == "POSITIVO").dropna(how='all')
+#     tabelaStcPos = formataImpressao(tabelaStcPos, "CORRETO")
+#     tabelaStcPos.to_excel(writerStc, "Positivos", index=False)    
     
-    tabelaStcNeg = tabelaStc.where(tabelaStc["SITUACAO"] == "NEGATIVO").dropna(how='all')
-    tabelaStcNeg = formataImpressao(tabelaStcNeg, "CORRETO")
-    tabelaStcNeg.to_excel(writerStc, "Negativos", index=False)
+#     tabelaStcNeg = tabelaStc.where(tabelaStc["SITUACAO"] == "NEGATIVO").dropna(how='all')
+#     tabelaStcNeg = formataImpressao(tabelaStcNeg, "CORRETO")
+#     tabelaStcNeg.to_excel(writerStc, "Negativos", index=False)
         
-    tabelaStcIncorreta = formataImpressao(tabelaStcIncorreta, "INCORRETO")
-    tabelaStcIncorreta.to_excel(writerStc, "Incorretos", index=False)
+#     tabelaStcIncorreta = formataImpressao(tabelaStcIncorreta, "INCORRETO")
+#     tabelaStcIncorreta.to_excel(writerStc, "Incorretos", index=False)
     
-with pd.ExcelWriter('Pio XII ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerPio:
-    tabelaPioPos = tabelaPio.where(tabelaPio["SITUACAO"] == "POSITIVO").dropna(how='all')
-    tabelaPioPos = formataImpressao(tabelaPioPos, "CORRETO")
-    tabelaPioPos.to_excel(writerPio, "Positivos", index=False)
+# with pd.ExcelWriter('Pio XII ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerPio:
+#     tabelaPioPos = tabelaPio.where(tabelaPio["SITUACAO"] == "POSITIVO").dropna(how='all')
+#     tabelaPioPos = formataImpressao(tabelaPioPos, "CORRETO")
+#     tabelaPioPos.to_excel(writerPio, "Positivos", index=False)
     
-    tabelaPioNeg = tabelaPio.where(tabelaPio["SITUACAO"] == "NEGATIVO").dropna(how='all')
-    tabelaPioNeg = formataImpressao(tabelaPioNeg, "CORRETO")
-    tabelaPioNeg.to_excel(writerPio, "Negativos", index=False)
+#     tabelaPioNeg = tabelaPio.where(tabelaPio["SITUACAO"] == "NEGATIVO").dropna(how='all')
+#     tabelaPioNeg = formataImpressao(tabelaPioNeg, "CORRETO")
+#     tabelaPioNeg.to_excel(writerPio, "Negativos", index=False)
         
-    tabelaPioIncorreta = formataImpressao(tabelaPioIncorreta, "INCORRETO")
-    tabelaPioIncorreta.to_excel(writerPio, "Incorretos", index=False)
+#     tabelaPioIncorreta = formataImpressao(tabelaPioIncorreta, "INCORRETO")
+#     tabelaPioIncorreta.to_excel(writerPio, "Incorretos", index=False)
     
-with pd.ExcelWriter('HANS ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerHans:
-    tabelaHansPos = tabelaHans.where(tabelaHans["SITUACAO"] == "POSITIVO").dropna(how='all')
-    tabelaHansPos = formataImpressao(tabelaHansPos, "CORRETO")
-    tabelaHansPos.to_excel(writerHans, "Positivos", index=False)
+# with pd.ExcelWriter('HANS ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerHans:
+#     tabelaHansPos = tabelaHans.where(tabelaHans["SITUACAO"] == "POSITIVO").dropna(how='all')
+#     tabelaHansPos = formataImpressao(tabelaHansPos, "CORRETO")
+#     tabelaHansPos.to_excel(writerHans, "Positivos", index=False)
     
-    tabelaHansNeg = tabelaHans.where(tabelaHans["SITUACAO"] == "NEGATIVO").dropna(how='all')
-    tabelaHansNeg = formataImpressao(tabelaHansNeg, "CORRETO")
-    tabelaHansNeg.to_excel(writerHans, "Negativos", index=False)
+#     tabelaHansNeg = tabelaHans.where(tabelaHans["SITUACAO"] == "NEGATIVO").dropna(how='all')
+#     tabelaHansNeg = formataImpressao(tabelaHansNeg, "CORRETO")
+#     tabelaHansNeg.to_excel(writerHans, "Negativos", index=False)
         
-    tabelaHansIncorreta = formataImpressao(tabelaHansIncorreta, "INCORRETO")
-    tabelaHansIncorreta.to_excel(writerHans, "Incorretos", index=False)
+#     tabelaHansIncorreta = formataImpressao(tabelaHansIncorreta, "INCORRETO")
+#     tabelaHansIncorreta.to_excel(writerHans, "Incorretos", index=False)
     
-with pd.ExcelWriter('Externas ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerExternas:
-    tabelaExternasPos = tabelaExternas.where(tabelaExternas["SITUACAO"] == "POSITIVO").dropna(how='all')
-    tabelaExternasPos = formataImpressao(tabelaExternasPos, "CORRETO")
-    tabelaExternasPos.to_excel(writerExternas, "Positivos", index=False)
+# with pd.ExcelWriter('Externas ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerExternas:
+#     tabelaExternasPos = tabelaExternas.where(tabelaExternas["SITUACAO"] == "POSITIVO").dropna(how='all')
+#     tabelaExternasPos = formataImpressao(tabelaExternasPos, "CORRETO")
+#     tabelaExternasPos.to_excel(writerExternas, "Positivos", index=False)
     
-    tabelaExternasNeg = tabelaExternas.where(tabelaExternas["SITUACAO"] == "NEGATIVO").dropna(how='all')
-    tabelaExternasNeg = formataImpressao(tabelaExternasNeg, "CORRETO")
-    tabelaExternasNeg.to_excel(writerExternas, "Negativos", index=False)
+#     tabelaExternasNeg = tabelaExternas.where(tabelaExternas["SITUACAO"] == "NEGATIVO").dropna(how='all')
+#     tabelaExternasNeg = formataImpressao(tabelaExternasNeg, "CORRETO")
+#     tabelaExternasNeg.to_excel(writerExternas, "Negativos", index=False)
         
-    tabelaExternasIncorreta = formataImpressao(tabelaExternasIncorreta, "INCORRETO")
-    tabelaExternasIncorreta.to_excel(writerExternas, "Incorretos", index=False)
+#     tabelaExternasIncorreta = formataImpressao(tabelaExternasIncorreta, "INCORRETO")
+#     tabelaExternasIncorreta.to_excel(writerExternas, "Incorretos", index=False)
     
-with pd.ExcelWriter('Internas ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerInternas:
-    tabelaInternasPos = tabelaInternas.where(tabelaInternas["SITUACAO"] == "POSITIVO").dropna(how='all')
-    tabelaInternasPos = formataImpressao(tabelaInternasPos, "CORRETO")
-    tabelaInternasPos.to_excel(writerInternas, "Positivos", index=False)
+# with pd.ExcelWriter('Internas ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerInternas:
+#     tabelaInternasPos = tabelaInternas.where(tabelaInternas["SITUACAO"] == "POSITIVO").dropna(how='all')
+#     tabelaInternasPos = formataImpressao(tabelaInternasPos, "CORRETO")
+#     tabelaInternasPos.to_excel(writerInternas, "Positivos", index=False)
     
-    tabelaInternasNeg = tabelaInternas.where(tabelaInternas["SITUACAO"] == "NEGATIVO").dropna(how='all')
-    tabelaInternasNeg = formataImpressao(tabelaInternasNeg, "CORRETO")
-    tabelaInternasNeg.to_excel(writerInternas, "Negativos", index=False)
+#     tabelaInternasNeg = tabelaInternas.where(tabelaInternas["SITUACAO"] == "NEGATIVO").dropna(how='all')
+#     tabelaInternasNeg = formataImpressao(tabelaInternasNeg, "CORRETO")
+#     tabelaInternasNeg.to_excel(writerInternas, "Negativos", index=False)
         
-    tabelaInternasIncorreta = formataImpressao(tabelaInternasIncorreta, "INCORRETO")
-    tabelaInternasIncorreta.to_excel(writerInternas, "Incorretos", index=False)
+#     tabelaInternasIncorreta = formataImpressao(tabelaInternasIncorreta, "INCORRETO")
+#     tabelaInternasIncorreta.to_excel(writerInternas, "Incorretos", index=False)

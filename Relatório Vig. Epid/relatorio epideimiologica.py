@@ -92,20 +92,14 @@ def vacivida(unidade, semana):
     return len(retornoVacivida)
 
 def saidaVacina(unidade, tipoSaida, semana):
-    global filtroTeste1
-    global filtroTeste2
-    global filtroCodsTeste
     filtro = (listaTotalSaidas["CÓD UNID."] == unidade["CNES"]) & (listaTotalSaidas["TIPO MOVIMENTAÇÃO"] == "SAÍDAS DIVERSAS") & (listaTotalSaidas["TIPO"] == tipoSaida)
-    filtroTeste1 = filtro
     filtroCods = None
     for cod in codigosVacina:
         if filtroCods is None:
             filtroCods = (listaTotalSaidas["CÓD MAT."] == cod)
         else:
             filtroCods = filtroCods | (listaTotalSaidas["CÓD MAT."] == cod)
-    filtroCodsTeste = filtroCods
     filtro = filtro & filtroCods
-    filtroTeste2 = filtro
     if semana:
         filtro = filtro & (listaTotalSaidas["DATA MOV"] <= paramDataAtual) & (listaTotalSaidas["DATA MOV"] >= paramDataAtual - timedelta(days=paramTamanhoSemana))    
     saidas = listaTotalSaidas.where(filtro).dropna(how='all')
