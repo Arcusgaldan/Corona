@@ -23,7 +23,23 @@ import re
 
 teste = None
 
-def formataCpfCns(colunaCpf, colunaCns):
+def formataCpfCns(colunaCpf, colunaCns): 
+    """
+    Parameters
+    ----------
+    colunaCpf : Series
+        Coluna da Tabela eSUS que possui os CPFs
+    colunaCns : Series
+        Coluna da Tabela eSUS que possui os CNSs
+
+    Returns
+    -------
+    colunaCpf : Series
+        Coluna da Tabela eSUS que possui os CPFs, formatada com quantidade de caracteres e formatação/máscara
+    colunaCns : Series
+        Coluna da Tabela eSUS que possui os CNSs, formatada com quantidade de caracteres
+
+    """
     for index, value in colunaCpf.items():
         if(len(str(colunaCns[index])) != 15):
             colunaCns.at[index] = None
@@ -40,29 +56,43 @@ def formataCpfCns(colunaCpf, colunaCns):
         #     colunaCpf[index] = value[:3] + '.' + value[3:6] + "." + value[6:9] + "-" + value[9:]
     return colunaCpf, colunaCns
 
-def acharId(row, tabela, tabelaEsus):
+def acharId(row, tabela, tabelaEsus): 
+    """
+    Parameters
+    ----------
+    row : Itertuple
+        Linha da Tabela eSUS
+    tabela : DataFrame
+        Tabela Assessor
+    tabelaEsus : DataFrame
+        Tabela eSUS
+
+    Returns
+    -------
+    notifs : DataFrame
+        Tabela Assessor recortada com apenas as notificações relativas à essa linha da Tabela eSUS (row)
+
+    """
     Cpf = row.CPF
     Cns = row.CNS
     Nome = row[paramColunaNomeEsus]
     Dn = row[paramColunaDataNascEsus]
-    #row.CPF, row.CNS, row[paramColunaNomeEsus], row[paramColunaDataNascEsus]
-    #print("TESTE - DN param " + str(Dn) + "\nPrimeira data da tabela: " + str(tabela['Data Nasc.'][0]))
-    if(type(Cpf) is float):
-        print("ACHEI UM CPF FLOAT: " + str(Cpf) + "\nNome: " + str(Nome))
+    
+    if(type(Cpf) is float): #Checa se o CPF é NaN
         Cpf = None
     if(Cpf is not None):
         filtro1 = tabela['CPF'] == Cpf.strip()
     else:
         filtro1 = False
     
-    if(type(Cns) is float):
+    if(type(Cns) is float): #Checa se o CNS é NaN
         Cns = None
     if(Cns is not None):
         filtro2 = tabela['CNS'] == Cns.strip()
     else:
         filtro2 = False
     
-    if(type(Nome) is float):
+    if(type(Nome) is float): #Checa se o Nome é NaN
         Nome = None
     if(Nome is not None and Dn is not None):
         filtro3 = tabela['Paciente'] == Nome.strip()
@@ -70,84 +100,119 @@ def acharId(row, tabela, tabelaEsus):
     else:
         filtro3 = False
         filtro4 = False
-    global teste
-    notifs = tabela.where(filtro1 | filtro2 | (filtro3 & filtro4)).dropna(how='all')
-    teste = notifs
-    Ids = notifs["COd. Paciente"].drop_duplicates().tolist()
-    for idAssessor in Ids:
+    
+    notifs = tabela.where(filtro1 | filtro2 | (filtro3 & filtro4)).dropna(how='all') #Dataframe das notificações desse paciente
+    Ids = notifs["COd. Paciente"].drop_duplicates().tolist() #Lista dos IDs encontrados deste paciente
+    for idAssessor in Ids: #Adiciona os IDs encontrados na coluna "IDS ASSESSOR", concatenando com vírgula onde há mais de 01 ID encontrado
         if tabelaEsus.at[row.Index, "IDS ASSESSOR"] == None:
             tabelaEsus.at[row.Index, "IDS ASSESSOR"] = str(int(idAssessor))
         else:
             tabelaEsus.at[row.Index, "IDS ASSESSOR"] = tabelaEsus.at[row.Index, "IDS ASSESSOR"] + ", " + str(int(idAssessor))
     return notifs
 
-def acharUnidade(row):
-    cnesUnidades = { #Fazer verificação pra email da Drogaria São Paulo
-    "3142531": "HOSPITAL SAO JORGE",
-    "2052970": "LABORATORIO DE ANALISES CLINICAS ESTIMA BORGES SC",
-    "3549208": "LABORATORIO SUZUKI",
-    "5124700": "LABORAMAS LABORATORIO DE ANALISES CLINICAS",
-    "7909837": "INSTITUTO RESPIRE VACINAS E INFUSOES",
-    "9344209": "POSTO DE COLETA SAO FRANCISCO",
-    "9567771": "POSTO DE COLETA SAO FRANCISCO",
-    "9371508": "SAUDE MED MULTICLINICA ESPECIALIZADA",
-    "6316344": "CENTRO DIAGNOSTICO MEDICO ASSOCIADO LTDA",
-    "419907": "DROGA RAIA"
-    }
-    
-    emailsUnidades = {
-    "yaah_cardoso@hotmail.com": "DROGA RAIA",
-    "maicon.douglas19@hotmail.com": "DROGARIA SAO PAULO",
-    "robertamap@yahoo.com.br": "DROGA RAIA",
-    "barretos2@dpsp.com.br": "DROGARIA SAO PAULO"
-    }
-    if(not pd.isnull(row[paramColunaCnesEsus])):
-        return cnesUnidades[str(int(row[paramColunaCnesEsus]))]
-    else:
-        return emailsUnidades[row[paramColunaEmailEsus]]
-    
-
 def mascaraDataEsus(tabelaEsus):
+    """
+    Parameters
+    ----------
+    tabelaEsus : DataFrame
+        DataFrame representando a tabela eSUS.
+
+    Returns
+    -------
+    tabelaEsus : DataFrame
+        O mesmo DataFrame, porém com as colunas de data devidamente formatadas para impressão
+    """
     if tabelaEsus.empty:
         return tabelaEsus
-    colunasData = ['Data da NotificaCAo', 'Data de Nascimento', 'Data do inIcio dos sintomas']
+    colunasData = ['Data da NotificaCAo', 'Data de Nascimento', 'Data do inIcio dos sintomas'] #Os nomes de colunas que contém data
     for i in colunasData:
         #print("Entrei em mascaraDataEsus com i = " + i)
         tabelaEsus[i] = pd.to_datetime(tabelaEsus[i])
         tabelaEsus[i] = tabelaEsus[i].dt.strftime('%d/%m/%Y')
     return tabelaEsus
 
-def limpaUtf8(tabela): #Função que limpa os caracteres bugados do UTF-8 do arquivo de exportação do eSUS
-    tabela.replace(to_replace={"Ã§": "C", "Ã‡": "C", "Ãµ": "O", "Ã³": "O", "Ã´": "O", "Ã\”": "O", "Ã­": "I", "Ãº": "U", "Ãš": "U", "ÃŠ": "E", "Ãª": "E", "Ã©": "E", "Ã‰": "E", "ÃG": "IG", "Ãƒ": "A", "Ã£": "A", "Ã¡": "A", "Ã¢": "A"}, inplace=True, regex=True)
-    tabela.replace(to_replace={"Ã": "A"}, inplace=True, regex=True)
-    tabela.rename(columns={"NÃºmero da NotificaÃ§Ã£o": "NUmero da NotificaCAo", "Nome Completo da MÃ£e": "Nome Completo da MAe", "NÃºmero (ou SN para Sem NÃºmero)": "NUmero", "RaÃ§a/Cor": "RaCa/Cor", "Data da NotificaÃ§Ã£o": "Data da NotificaCAo", "Resultado (PCR/RÃ¡pidos)": "Resultado (PCR/RApidos)", "MunicÃ­pio de ResidÃªncia": "MunicIpio de ResidEncia", "Data do inÃ­cio dos sintomas": "Data do inIcio dos sintomas", "ClassificaÃ§Ã£o Final": "ClassificaCAo Final", "EvoluÃ§Ã£o Caso": "EvoluCAo Caso", "Teste SorolÃ³gico": "Teste SorolOgico"}, inplace=True)
+def limpaUtf8(tabela):
+    """
+    Parameters
+    ----------
+    tabela : DataFrame
+        Tabela eSUS
+
+    Returns
+    -------
+    tabela : DataFrame
+        A mesma tabela recebida, porém com os caracteres "bugados" em UTF-8 substituídos por sua contraparte em ASCII
+
+    """
+    tabela.replace(to_replace={"Ã§": "C", "Ã‡": "C", "Ãµ": "O", "Ã³": "O", "Ã´": "O", "Ã\”": "O", "Ã­": "I", "Ãº": "U", "Ãš": "U", "ÃŠ": "E", "Ãª": "E", "Ã©": "E", "Ã‰": "E", "ÃG": "IG", "Ãƒ": "A", "Ã£": "A", "Ã¡": "A", "Ã¢": "A"}, inplace=True, regex=True) #Regras de substituição por caractere
+    tabela.replace(to_replace={"Ã": "A"}, inplace=True, regex=True) #Mais regras de substituição
+    tabela.rename(columns={"NÃºmero da NotificaÃ§Ã£o": "NUmero da NotificaCAo", "Nome Completo da MÃ£e": "Nome Completo da MAe", "NÃºmero (ou SN para Sem NÃºmero)": "NUmero", "RaÃ§a/Cor": "RaCa/Cor", "Data da NotificaÃ§Ã£o": "Data da NotificaCAo", "Resultado (PCR/RÃ¡pidos)": "Resultado (PCR/RApidos)", "MunicÃ­pio de ResidÃªncia": "MunicIpio de ResidEncia", "Data do inÃ­cio dos sintomas": "Data do inIcio dos sintomas", "ClassificaÃ§Ã£o Final": "ClassificaCAo Final", "EvoluÃ§Ã£o Caso": "EvoluCAo Caso", "Teste SorolÃ³gico": "Teste SorolOgico"}, inplace=True) #Renomeia as colunas substituindo os caracteres acima citados
     return tabela
 
-def limpaAcentos(tabela): #Função que limpa os caracteres especiais da tabela do Assessor
+def limpaAcentos(tabela):
+    """
+    Parameters
+    ----------
+    tabela : DataFrame
+        Tabela Assessor
+
+    Returns
+    -------
+    tabela : DataFrame
+        A mesma tabela recebida, porém retirando acentos e cedilhas.
+
+    """
     tabela.replace(to_replace={"Á": "A", "á": "A", "Â": "A", "â": "A", "Ã": "A", "ã": "A",
                                "É": "E", "é": "E", "Ê": "E", "ê": "E",
                                "Í": "I", "í": "I", "Î": "I", "î": "I",
                                "Ó": "O", "ó": "O", "Ô": "O", "ô": "O", "Õ": "O", "õ": "O",
                                "Ú": "U", "ú": "U", "Û": "U", "û": "U",
-                               "Ç": "C", "ç": "C"}, inplace=True, regex=True)
-    tabela.rename(columns={"Cód. Paciente": "COd. Paciente", "Data da Notificação": "Data da NotificaCAo", "Situação": "SituaCAo"}, inplace=True)    
+                               "Ç": "C", "ç": "C"}, inplace=True, regex=True) #Regras de substituição por caractere
+    tabela.rename(columns={"Cód. Paciente": "COd. Paciente", "Data da Notificação": "Data da NotificaCAo", "Situação": "SituaCAo"}, inplace=True) #Renomeia as colunas substituindo os caracteres acima citados
     return tabela
 
 def appendTabelaAuxiliar(tabela, row, motivo):
-    #aux = {"Nome": row[paramColunaNomeEsus], "CPF": row.CPF, "Data Not.": row[paramColunaDataNotifEsus], "Notificante CNES": row[paramColunaCnesEsus], "Notificante Email": row[paramColunaEmailEsus], "Situacao": row[paramColunaSituacaoEsus]}
-    aux = {"NUmero da NotificaCAo": row[paramColunaNumNotEsus], "Nome Completo": row[paramColunaNomeEsus], "CPF": row[paramColunaCpfEsus], "CNS": row[paramColunaCnsEsus], "Data de Nascimento": row[paramColunaDataNascEsus], "Nome Completo da MAe": row[paramColunaNomeMaeEsus], "Sexo": row[paramColunaSexoEsus], "Telefone de Contato": row[paramColunaTelContatoEsus], "Telefone Celular": row[paramColunaTelCelEsus], "CEP": row[paramColunaCepEsus], "Logradouro": row[paramColunaLogradouroEsus], "NUmero": row[paramColunaNumEndEsus], "Complemento": row[paramColunaCompEndEsus], "Bairro": row[paramColunaBairroEndEsus], "RaCa/Cor": row[paramColunaRacaEsus], "Data da NotificaCAo": row[paramColunaDataNotifEsus], "Data do inIcio dos sintomas": row[paramColunaDataSintomasEsus], "Notificante CNES": row[paramColunaCnesEsus], "Notificante Email": row[paramColunaEmailEsus], "Notificante Nome Completo": row[paramColunaNotifNomeEsus], "IDS ASSESSOR": row[paramColunaIdsEsus]}
+    """
+    Parameters
+    ----------
+    tabela : List
+        Lista de linhas (dict) incorretas, que posteriormente é convertida em DataFrame
+    row : Itertuple
+        A linha em questão da tabela eSUS a ser inserida na lista de linhas incorretas
+    motivo : String
+        Mensagem de motivo pelo qual está sendo considerada incorreta
+
+    Returns
+    -------
+    None.
+
+    """    
+    aux = {"NUmero da NotificaCAo": row[paramColunaNumNotEsus], "Nome Completo": row[paramColunaNomeEsus], "CPF": row[paramColunaCpfEsus], "CNS": row[paramColunaCnsEsus], "Data de Nascimento": row[paramColunaDataNascEsus], "Nome Completo da MAe": row[paramColunaNomeMaeEsus], "Sexo": row[paramColunaSexoEsus], "Telefone de Contato": row[paramColunaTelContatoEsus], "Telefone Celular": row[paramColunaTelCelEsus], "CEP": row[paramColunaCepEsus], "Logradouro": row[paramColunaLogradouroEsus], "NUmero": row[paramColunaNumEndEsus], "Complemento": row[paramColunaCompEndEsus], "Bairro": row[paramColunaBairroEndEsus], "RaCa/Cor": row[paramColunaRacaEsus], "Data da NotificaCAo": row[paramColunaDataNotifEsus], "Data do inIcio dos sintomas": row[paramColunaDataSintomasEsus], "Notificante CNES": row[paramColunaCnesEsus], "Notificante Email": row[paramColunaEmailEsus], "Notificante Nome Completo": row[paramColunaNotifNomeEsus], "IDS ASSESSOR": row[paramColunaIdsEsus]} #Criação de novo Dict a ser inserido na lista de incorretos
     if motivo is not None:
-        aux['Motivo'] = motivo
-    tabela.append(aux)
+        aux['Motivo'] = motivo #Adiciona o motivo ao Dict
+    tabela.append(aux) #Insere o Dict na lista
 
 def formataImpressao(tabela, tipo):
-    #tabela = mascaraDataEsus(tabela)
+    """
+    Parameters
+    ----------
+    tabela : DataFrame
+        Tabela eSUS
+    tipo : String
+        String que indica que tipo de tabela é, para saber como tratar. Valores: CORRETO ou INCORRETO
+
+    Returns
+    -------
+    DataFrame
+        A mesma DataFrame recebida, porém com as colunas reorganizadas e a coluna do Número de Notificação reformatada.
+
+    """
     tabela["NUmero da NotificaCAo"] = tabela["NUmero da NotificaCAo"].astype(str)
-    if tipo == "CORRETO":        
+    if tipo == "CORRETO": #Colunas em ordem caso seja tabela de Corretos
         return tabela[["NUmero da NotificaCAo", "IDS ASSESSOR", "Nome Completo", "Data de Nascimento", "CPF", "CNS", "Data da NotificaCAo", "Data do inIcio dos sintomas", "Nome Completo da MAe", "Sexo", "Telefone de Contato", "Telefone Celular", "CEP", "Logradouro", "NUmero", "Complemento", "Bairro", "RaCa/Cor", "Notificante CNES", "Notificante Email", "Notificante Nome Completo"]]
-    elif tipo == "INCORRETO":
+    elif tipo == "INCORRETO": #Colunas em ordem caso seja tabela de Incorretos (ou seja, com adição do motivo ao final)
         return tabela[["NUmero da NotificaCAo", "IDS ASSESSOR", "Nome Completo", "Data de Nascimento", "CPF", "CNS", "Data da NotificaCAo", "Data do inIcio dos sintomas",  "Nome Completo da MAe", "Sexo", "Telefone de Contato", "Telefone Celular", "CEP", "Logradouro", "NUmero", "Complemento", "Bairro", "RaCa/Cor", "Notificante CNES", "Notificante Email", "Notificante Nome Completo", "Motivo"]]
-    else:
+    else: #A mesma tabela caso o parâmetro "Tipo" não tenha um dos valores preconizados
         return tabela
 
 # def descobreSituacao(tabela, row):
@@ -168,43 +233,91 @@ def formataImpressao(tabela, tipo):
 #     return "SEM SITUACAO"
 
 def descobreSituacao(tabela, row):
-    if row[paramColunaTipoTesteEsus] == "RT-PCR" or row[paramColunaTipoTesteEsus] == "TESTE RAPIDO - ANTIGENO":
-        if row[paramColunaResultadoPCREsus] == "Positivo" or row[paramColunaResultadoIgmEsus] == "Reagente" or row[paramColunaResultadoTotaisEsus] == "Reagente":
+    """
+    Parameters
+    ----------
+    tabela : DataFrame
+        Tabela eSUS
+    row : Itertuple
+        Linha da Tabela eSUS em questão (a ser investigada)
+        
+    Description
+    -----------
+    Determina a situação da linha (row) e também adiciona este resultado à coluna SITUAÇÃO da Tabela eSUS
+
+    Returns
+    -------
+    String
+        Palavra-chave que determina qual é a situação da linha em questão (POSITIVO, NEGATIVO, SUSPEITO ou INCONCLUSIVO)
+
+    """
+    if row[paramColunaTipoTesteEsus] == "RT-PCR" or row[paramColunaTipoTesteEsus] == "TESTE RAPIDO - ANTIGENO": #Checa se o tipo do teste é PCR ou TR-Antígeno
+        if row[paramColunaResultadoPCREsus] == "Positivo" or ((row[paramColunaResultadoIgmEsus] == "Reagente" or row[paramColunaResultadoTotaisEsus] == "Reagente") and row[paramColunaAssintomaticoEsus] == "NAo"): #Se resultado PCR/Rápido for positivo, considera positivo. Se Resultado IGM ou Total for Positivo E Assintomático for Não, considera Positivo.
             tabela.at[row.Index, "SITUACAO"] = "POSITIVO"
             return "POSITIVO"
-        elif row[paramColunaResultadoPCREsus] == "Negativo" or row[paramColunaResultadoIgmEsus] == "NAo Reagente" or row[paramColunaResultadoTotaisEsus] == "NAo Reagente":
+        elif row[paramColunaResultadoPCREsus] == "Negativo" or row[paramColunaResultadoIgmEsus] == "NAo Reagente" or row[paramColunaResultadoTotaisEsus] == "NAo Reagente": #Se qualquer das colunas de resultado forem Negativo ou Não Reagente, considera Negativo
             tabela.at[row.Index, "SITUACAO"] = "NEGATIVO"
             return "NEGATIVO"
-        else:
+        elif pd.isnull(row[paramColunaResultadoIgmEsus]) and pd.isnull(row[paramColunaResultadoTotaisEsus]): #Se Resultado IgM e Resultado Totais estiverem em branco, considera Suspeito. Para cair nessa condição, é porque Resultado PCR/Rapido com certeza está em branco (pois já testou para Positivo e Negativo)
             tabela.at[row.Index, "SITUACAO"] = "SUSPEITO"
             return "SUSPEITO"
-    elif row[paramColunaTipoTesteEsus] == "TESTE RAPIDO - ANTICORPO":
-        tabela.at[row.Index, "SITUACAO"] = "INCONCLUSIVO" #TODO
-        return "INCONCLUSIVO" #TODO
-    else:
+        else: #Se nenhuma das condições acima forem verdadeiras, considera Inconclusivo
+            tabela.at[row.Index, "SITUACAO"] = "INCONCLUSIVO"
+            return "INCONCLUSIVO"
+    elif row[paramColunaTipoTesteEsus] == "TESTE RAPIDO - ANTICORPO": #Checa se o tipo de teste é TR-Anticorpo
+        if (row[paramColunaResultadoPCREsus] == "Positivo" or row[paramColunaResultadoTotaisEsus] == "Reagente" or row[paramColunaResultadoIgmEsus] == "Reagente") and row[paramColunaAssintomaticoEsus] == "NAo": #Se qualquer uma das colunas de resultado for Positivo ou Reagente e Assintomático for Não, considera Positivo.
+            tabela.at[row.Index, "SITUACAO"] = "POSITIVO"
+            return "POSITIVO"
+        elif row[paramColunaResultadoPCREsus] == "Negativo" or row[paramColunaResultadoIgmEsus] == "NAo Reagente" or row[paramColunaResultadoTotaisEsus] == "NAo Reagente": #Se qualquer uma das colunas de resultado for Negativo ou Não Reagente, considera Negativo
+            tabela.at[row.Index, "SITUACAO"] = "NEGATIVO"
+            return "NEGATIVO"
+        elif pd.isnull(row[paramColunaResultadoPCREsus]) and pd.isnull(row[paramColunaResultadoIgmEsus]) and pd.isnull(row[paramColunaResultadoTotaisEsus]): #Se as 3 colunas de resultado estiverem em branco, considera Suspeito
+            tabela.at[row.Index, "SITUACAO"] = "SUSPEITO"
+            return "SUSPEITO"
+        else: #Se nenhuma das condições acima forem verdadeiras, considera Inconclusivo.
+            tabela.at[row.Index, "SITUACAO"] = "INCONCLUSIVO"
+            return "INCONCLUSIVO"
+    else: #Se não for nenhum desses tipos de teste, considera Inconclusivo
         tabela.at[row.Index, "SITUACAO"] = "INCONCLUSIVO"
         return "INCONCLUSIVO"
         
 
 def trataSuspeito(row, notifAssessor, tabela, tabelaIncorreta):
-    if "CONFIRMADO" in notifAssessor["SituaCAo"].values:
+    """
+    Parameters
+    ----------
+    row : Itertuple
+        Linha da Tabela eSUS
+    notifAssessor : DataFrame
+        DataFrame com todas as notificações da tabela Assessor relativas à essa linha da tabela eSUS
+    tabela : DataFrame
+        Referência à tabela eSUS, usada para eliminar as linhas que já foram transcritas à tabela Incorreta.
+    tabelaIncorreta : List
+        Lista de Dicts, onde cada Dict é uma linha da tabela eSUS que foi considerada incorreta
+
+    Returns
+    -------
+    None.
+
+    """
+    if "CONFIRMADO" in notifAssessor["SituaCAo"].values: #Se houver alguma notificação confirmada no Assessor, não é suspeita.
         appendTabelaAuxiliar(tabelaIncorreta, row, "CONFIRMADO")
         tabela.drop(row.Index, inplace=True)
         return
-    if "SUSPEITA" in notifAssessor["SituaCAo"].values:
+    if "SUSPEITA" in notifAssessor["SituaCAo"].values: #Se houver alguma notificação suspeita no Assessor, não é nova suspeita
         appendTabelaAuxiliar(tabelaIncorreta, row, "SUSPEITO EM ABERTO")
         tabela.drop(row.Index, inplace=True)
         return
-    if "NEGATIVO" in notifAssessor["SituaCAo"].values:
-        negativosAssessor = notifAssessor.where(notifAssessor["SituaCAo"] == "NEGATIVO").dropna(how='all')
-        for rowNegativo in negativosAssessor.itertuples():
+    if "NEGATIVO" in notifAssessor["SituaCAo"].values: #Se houver alguma notificação negativa no Assessor, verifica o parâmetro de data
+        negativosAssessor = notifAssessor.where(notifAssessor["SituaCAo"] == "NEGATIVO").dropna(how='all') #Lista de todas as notificações NEGATIVAS da Tabela Assessor
+        for rowNegativo in negativosAssessor.itertuples(): #Laço para cada notificação negativa acima citada
             dataNotifAssessor = rowNegativo[paramColunaDataNotifAssessor]
             dataNotifEsus = row[paramColunaDataNotifEsus]
-            if dataNotifAssessor >= dataNotifEsus - timedelta(days=paramDiasNegativo):                
+            if dataNotifAssessor >= dataNotifEsus - timedelta(days=paramDiasNegativo): #Se a Data da Notificação no Assessor for (paramDiasNegativo) dias antes ou qualquer quantidade de dias depois da Notificação no eSUS, não considera suspeita
                 appendTabelaAuxiliar(tabelaIncorreta, row, "NEGATIVO DENTRO DO PERIODO")
                 tabela.drop(row.Index, inplace=True)
                 return
-    if "DESCARTADO" in notifAssessor["SituaCAo"].values:
+    if "DESCARTADO" in notifAssessor["SituaCAo"].values: #Mesma regra de negativo
         descartadosAssessor = notifAssessor.where(notifAssessor["SituaCAo"] == "DESCARTADO").dropna(how='all')
         for rowDescartado in descartadosAssessor.itertuples():
             dataNotifAssessor = rowDescartado[paramColunaDataNotifAssessor]
@@ -215,26 +328,60 @@ def trataSuspeito(row, notifAssessor, tabela, tabelaIncorreta):
                 return
 
 def trataPositivo(row, notifAssessor, tabela, tabelaIncorreta):
-    if "CONFIRMADO" in notifAssessor["SituaCAo"].values:
+    """
+    Parameters
+    ----------
+    row : Itertuple
+        Linha da Tabela eSUS
+    notifAssessor : DataFrame
+        DataFrame com todas as notificações da tabela Assessor relativas à essa linha da tabela eSUS
+    tabela : DataFrame
+        Referência à tabela eSUS, usada para eliminar as linhas que já foram transcritas à tabela Incorreta.
+    tabelaIncorreta : List
+        Lista de Dicts, onde cada Dict é uma linha da tabela eSUS que foi considerada incorreta
+
+    Returns
+    -------
+    None.
+
+    """
+    if "CONFIRMADO" in notifAssessor["SituaCAo"].values: #Se houver alguma notificação confirmada no Assessor, não é novo Confirmado
         appendTabelaAuxiliar(tabelaIncorreta, row, "CONFIRMADO")
         tabela.drop(row.Index, inplace=True)
         return
 
 def trataNegativo(row, notifAssessor, tabela, tabelaIncorreta):
-    if "CONFIRMADO" in notifAssessor["SituaCAo"].values:
+    """
+    Parameters
+    ----------
+    row : Itertuple
+        Linha da Tabela eSUS
+    notifAssessor : DataFrame
+        DataFrame com todas as notificações da tabela Assessor relativas à essa linha da tabela eSUS
+    tabela : DataFrame
+        Referência à tabela eSUS, usada para eliminar as linhas que já foram transcritas à tabela Incorreta.
+    tabelaIncorreta : List
+        Lista de Dicts, onde cada Dict é uma linha da tabela eSUS que foi considerada incorreta
+
+    Returns
+    -------
+    None.
+
+    """
+    if "CONFIRMADO" in notifAssessor["SituaCAo"].values: #Se houver alguma notificação confirmada no Assessor, não é negativo
         appendTabelaAuxiliar(tabelaIncorreta, row, "CONFIRMADO")
         tabela.drop(row.Index, inplace=True)
         return   
-    if "NEGATIVO" in notifAssessor["SituaCAo"].values:
+    if "NEGATIVO" in notifAssessor["SituaCAo"].values: #Se houver alguma notificação negativo no Assessor, verifica parâmetro de data
         negativosAssessor = notifAssessor.where(notifAssessor["SituaCAo"] == "NEGATIVO").dropna(how='all')
         for rowNegativo in negativosAssessor.itertuples():
             dataNotifAssessor = rowNegativo[paramColunaDataNotifAssessor]
             dataNotifEsus = row[paramColunaDataNotifEsus]
-            if dataNotifAssessor >= dataNotifEsus - timedelta(days=paramDiasNegativo):
+            if dataNotifAssessor >= dataNotifEsus - timedelta(days=paramDiasNegativo): #Se a Data da Notificação no Assessor for (paramDiasNegativo) dias antes ou qualquer quantidade de dias depois da Notificação no eSUS, não considera negativo
                 appendTabelaAuxiliar(tabelaIncorreta, row, "NEGATIVO DENTRO DO PERIODO")
                 tabela.drop(row.Index, inplace=True)
                 return
-    if "DESCARTADO" in notifAssessor["SituaCAo"].values:
+    if "DESCARTADO" in notifAssessor["SituaCAo"].values: #Mesma regra do negativo
         descartadosAssessor = notifAssessor.where(notifAssessor["SituaCAo"] == "DESCARTADO").dropna(how='all')
         for rowDescartado in descartadosAssessor.itertuples():
             dataNotifAssessor = rowDescartado[paramColunaDataNotifAssessor]
@@ -245,6 +392,24 @@ def trataNegativo(row, notifAssessor, tabela, tabelaIncorreta):
                 return
         
 def converteFiltro(tabela, lblCnes, lblEmail, listaFiltro):
+    """
+    Parameters
+    ----------
+    tabela : DataFrame
+        Tabela do eSUS (Correta ou Incorreta) a ser filtrada
+    lblCnes : String
+        String que representa rótulo da coluna que possui o CNES da unidade
+    lblEmail : String
+        String que representa rótulo da coluna que possui o e-mail da unidade
+    listaFiltro : Dict
+        Dict com os CNES e Emails a serem considerados de uma certa unidade ou grupo de unidades para o filtro
+
+    Returns
+    -------
+    filtroFinal : Series
+        Filtro a ser usado para filtrar todas as notificações da Tabela eSUS que se encaixam em ListaFiltro (filtro para ser usado com função .where())
+
+    """
     filtroFinal = pd.Series(dtype=object)
     for filtroCnes in listaFiltro["cnes"]:
         if filtroFinal.empty:
@@ -261,6 +426,18 @@ def converteFiltro(tabela, lblCnes, lblEmail, listaFiltro):
     return filtroFinal
 
 def segundoEmHora(segundos):
+    """
+    Parameters
+    ----------
+    segundos : Float
+        Quantidade de segundos a serem convertidos em String de Tempo
+
+    Returns
+    -------
+    stringTempo : String
+        String representando os segundos recebidos em Hora:Minuto:Segundo
+
+    """
     horas = int(segundos / 3600) if int(segundos / 3600) >= 10 else "0" + str(int(segundos / 3600))
     minutos = int((segundos % 3600) / 60) if int((segundos % 3600) / 60) >= 10 else "0" + str(int((segundos % 3600) / 60))
     segundos = int((segundos % 3600) % 60) if int((segundos % 3600) % 60) >= 10 else "0" + str(int((segundos % 3600) % 60))
@@ -268,6 +445,21 @@ def segundoEmHora(segundos):
     return stringTempo
 
 def printTabela(nomeArquivo, tabelaCorreta, tabelaIncorreta):
+    """
+    Parameters
+    ----------
+    nomeArquivo : String
+        String que indica o nome do arquivo a ser gerado
+    tabelaCorreta : DataFrame
+        Tabela com os registros CORRETOS a serem divididos em Positivos, Negativos e Inconclusivos e posteriormente serem impressos em .xlsx
+    tabelaIncorreta : DataFrame
+        Tabela com os registros INCORRETOS a serem impressos no xlsx
+
+    Returns
+    -------
+    None.
+
+    """
     with pd.ExcelWriter(nomeArquivo + ' ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writer:
         tabelaPos = tabelaCorreta.where(tabelaCorreta["SITUACAO"] == "POSITIVO").dropna(how='all')
         tabelaPos = formataImpressao(tabelaPos, "CORRETO")
@@ -276,42 +468,47 @@ def printTabela(nomeArquivo, tabelaCorreta, tabelaIncorreta):
         tabelaNeg = tabelaCorreta.where(tabelaCorreta["SITUACAO"] == "NEGATIVO").dropna(how='all')
         tabelaNeg = formataImpressao(tabelaNeg, "CORRETO")
         tabelaNeg.to_excel(writer, "Negativos", index=False)
+        
+        tabelaInconc = tabelaCorreta.where(tabelaCorreta["SITUACAO"] == "INCONCLUSIVO").dropna(how='all')
+        tabelaInconc = formataImpressao(tabelaInconc, "CORRETO")
+        tabelaInconc.to_excel(writer, "Inconclusivos", index=False)
             
         tabelaIncorreta = formataImpressao(tabelaIncorreta, "INCORRETO")
         tabelaIncorreta.to_excel(writer, "Incorretos", index=False)
 
 paramDiasAtras = 16 #Parâmetro que define quantos dias atrás ele considera na planilha de suspeitos e monitoramento (ex: notificações de até X dias atrás serão analisadas, antes disso serão ignoradas)
 paramDiasNegativo = 5 #Parâmetro que define quantos dias atrás uma notificacao de negativo deve ser considerada "a mesma" notificacao. Acima desse parâmetro deve ser considerada uma nova notificacao (agora também usada para descartados)
-paramColunaNomeEsus = 30 ##Parâmetro que define qual é o index da coluna que possui o nome completo do paciente no eSUS (parâmetro necessário pois o itertuples não permite indexacao por nome de coluna com espaço)
-paramColunaDataNascEsus = 25 ##Parâmetro que define qual é o index da coluna que possui a data de nascimento do paciente no eSUS (parâmetro necessário pois o itertuples não permite indexacao por nome de coluna com espaço)
-paramColunaDataNotifEsus = 54 #Parâmetro que define qual é o index da coluna que possui a data de notificacao do eSUS (parâmetro necessário pois o itertuples não permite indexacao por nome de coluna com espaço)
-paramColunaCnesEsus = 67
-paramColunaEmailEsus = 69
 
+paramColunaNumNotEsus = 1
+paramColunaTipoTesteEsus = 4
 paramColunaResultadoPCREsus = 5
 paramColunaEstadoTesteEsus = 8
 paramColunaClassifFinalEsus = 10
 paramColunaResultadoTotaisEsus = 11
 paramColunaResultadoIgaEsus = 12
 paramColunaResultadoIgmEsus = 13
-paramColunaSituacaoEsus = 72
-paramColunaIdsEsus = 73
-paramColunaNumNotEsus = 1
+paramColunaTelContatoEsus = 17
+paramColunaSexoEsus = 19
 paramColunaCpfEsus = 22
 paramColunaCnsEsus = 24
-paramColunaNomeMaeEsus = 30
-paramColunaSexoEsus = 19
-paramColunaTelContatoEsus = 17
+paramColunaDataNascEsus = 25
 paramColunaTelCelEsus = 29
+paramColunaNomeEsus = 30
+paramColunaNomeMaeEsus = 30 
 paramColunaCepEsus = 33
 paramColunaLogradouroEsus = 34
 paramColunaNumEndEsus = 35
 paramColunaCompEndEsus = 36
 paramColunaBairroEndEsus = 37
 paramColunaRacaEsus = 38
+paramColunaAssintomaticoEsus = 53
+paramColunaDataNotifEsus = 54
 paramColunaDataSintomasEsus = 64
+paramColunaCnesEsus = 67
+paramColunaEmailEsus = 69
 paramColunaNotifNomeEsus = 70
-paramColunaTipoTesteEsus = 4
+paramColunaSituacaoEsus = 72
+paramColunaIdsEsus = 73
 
 flagsUnidades = {}
 flagsUnidades["stc"] = False
@@ -338,7 +535,7 @@ regex = re.compile(regexOpcoes, re.IGNORECASE)
 
 while True:
     print("1 - Santa Casa\n2 - Pio XII\n3 - HANS\n4 - Internas\n5 - Externas\n6 - Todas\n")
-    print("Insira as opções desejadas, separadas por vírgula: ", end="")
+    print("Insira as opções desejadas, separadas por vírgula (ex: 1, 2, 3): ", end="")
     opcoes = input()
     
     if regex.match(opcoes):
@@ -354,6 +551,8 @@ if "6" in opcoes:
 else:
     for opcao in opcoes:
         flagsUnidades[mapOpcaoToUnidade[opcao]] = True
+
+print("Iniciando Processamento...")
  
 start = timer()
 
@@ -416,6 +615,8 @@ print("Terminei de ler a tabela do Assessor aos " + str(endReadAssessor - start)
 
 tabelaTotalEsusIncorreta = []
 countLinhas = 0
+somaVeloc = 0
+velocMedia = 0
 porcentil = round(qtdNotif / 100)
 startProcessamento = timer()
 
@@ -436,13 +637,15 @@ for row in tabelaTotalEsus.itertuples():
         porcTimer = timer()
         tempoAtual = porcTimer - startProcessamento
         velocEstimada = countLinhas / tempoAtual
+        somaVeloc += velocEstimada
+        velocMedia = somaVeloc / porcAtual
         tempoEstimadoTotal = (qtdNotif - countLinhas) / velocEstimada
         stringTempoEstimado = segundoEmHora(tempoEstimadoTotal)
-        print("Concluido: " + str(porcAtual) + "% aos " + "{:.0f}".format(tempoAtual) + " segundos (desde o início do laço).\n" + str(countLinhas) + " linhas lidas de " + str(qtdNotif) + " total.\nVelocidade estimada: " + "{:.2f}".format(velocEstimada) + " linhas por segundo.\nTempo estimado: " + stringTempoEstimado + " para conlusão\n\n")
+        print("Concluido: " + str(porcAtual) + "% aos " + "{:.0f}".format(tempoAtual) + " segundos (desde o início do laço).\n" + str(countLinhas) + " linhas lidas de " + str(qtdNotif) + " total.\nVelocidade estimada: " + "{:.2f}".format(velocEstimada) + " linhas por segundo.\nVelocidade media: " + "{:.2f}".format(velocMedia) + " linhas por segundo.\nTempo estimado: " + stringTempoEstimado + " para conlusão\n\n")
 
 
 endLaco = timer()
-print("Terminei de processar o eSUS aos " + str(endLaco - start) + " segundos.\nTotal de " + segundoEmHora(endLaco - start) + " de processamento.")
+print("Terminei de processar o eSUS aos " + str(endLaco - start) + " segundos.\nTotal de " + segundoEmHora(endLaco - start) + " de processamento.\nVelocidade média de " + "{:.2f}".format(velocMedia) + " linhas por segundo.")
 
 tabelaTotalEsusIncorreta = pd.DataFrame(tabelaTotalEsusIncorreta)
 
