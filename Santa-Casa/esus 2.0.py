@@ -296,7 +296,7 @@ def descobreSituacao(tabela, row):
         else: #Se nenhuma das condições acima forem verdadeiras, considera Inconclusivo
             tabela.at[row.Index, "SITUACAO"] = "INCONCLUSIVO"
             return "INCONCLUSIVO"
-    elif row[paramColunaTipoTesteEsus] == "TESTE RAPIDO - ANTICORPO": #Checa se o tipo de teste é TR-Anticorpo
+    elif row[paramColunaTipoTesteEsus] == "TESTE RAPIDO - ANTICORPO" or pd.isnull(row[paramColunaTipoTesteEsus]): #Checa se o tipo de teste é TR-Anticorpo
         if (row[paramColunaResultadoPCREsus] == "Positivo" or row[paramColunaResultadoTotaisEsus] == "Reagente" or row[paramColunaResultadoIgmEsus] == "Reagente") and row[paramColunaAssintomaticoEsus] == "NAo": #Se qualquer uma das colunas de resultado for Positivo ou Reagente e Assintomático for Não, considera Positivo.
             tabela.at[row.Index, "SITUACAO"] = "POSITIVO"
             return "POSITIVO"
