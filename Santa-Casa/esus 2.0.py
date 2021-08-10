@@ -23,6 +23,50 @@ import re
 
 teste = None
 
+def realmenteSuspeitos(tabelaAssessor):
+    """
+    Parameters
+    ----------
+    tabelaAssessor : DataFrame
+        Tabela Assessor
+
+    Returns
+    -------
+    tabelaTotal : DataFrame
+        Tabela Assessor, porém com apenas os "Realmente Suspeitos", de acordo com a regra de negócio
+
+    """
+    print("Iniciando 'Realmente Suspeitos'...")
+    tabelaTotal = tabelaAssessor
+    tabelaSuspeitos = tabelaTotal.where((tabelaTotal["Data da Notificação"] >= datetime.strptime('01-06-2020', '%d-%m-%Y')) & (tabelaTotal["Situação"] == "SUSPEITA")).dropna(how='all').sort_values(by=["Cód. Paciente", "Data da Notificação"]).drop_duplicates("Cód. Paciente", ignore_index=True)
+    for row in tabelaSuspeitos.itertuples(): #Passando por cada suspeito
+        situacoes = tabelaTotal.where(tabelaTotal["Cód. Paciente"] == row[paramColunaIdAssessor]).dropna(how='all') #Pega apenas a situação e data de notificação de cada registro que o suspeito possui na lista total
+        flag = False
+        #print("Teste de situação: " + situacoes["Situação"].values)
+        if "CONFIRMADO" in situacoes["Situação"].values: #Se houver um confirmado na lista de situações
+            confirmadosAssessor = situacoes.where(situacoes["Situação"] == "CONFIRMADO").dropna(how='all')
+            for rowConfirmado in confirmadosAssessor.itertuples(): #Passa por cada situação
+                flag = False
+                if rowConfirmado[paramColunaDataNotifAssessor] >= (row[paramColunaDataNotifAssessor] - timedelta(days=90)):
+                    tabelaSuspeitos.drop(row.Index, inplace=True) #Tira o suspeito da lista de suspeitos
+                    flag = True
+                    break
+            if flag:
+                continue
+        if "NEGATIVO" in situacoes["Situação"].values: #Se houver um negativo nas situações
+            negativosAssessor = situacoes.where(situacoes["Situação"] == "NEGATIVO").dropna(how='all')
+            for rowNegativo in negativosAssessor.itertuples():                
+                if rowNegativo[paramColunaDataNotifAssessor] >= (row[paramColunaDataNotifAssessor] - timedelta(days=2)):                    
+                    tabelaSuspeitos.drop(row.Index, inplace=True) #Tira o suspeito da lista de suspeitos
+                    break    
+    
+    tabelaTotal = tabelaTotal.where(tabelaTotal["Situação"] != "SUSPEITA").dropna(how='all')
+    tabelaTotal = pd.concat([tabelaTotal, tabelaSuspeitos])
+    with pd.ExcelWriter('Total e Realmente Suspeitos ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writer:
+        tabelaTotal.to_excel(writer, index=False)
+    print("Total de " + str(len(tabelaTotal)) + " total e realmente suspeitos.")
+    return tabelaTotal
+
 def formataCpfCns(colunaCpf, colunaCns): 
     """
     Parameters
@@ -78,21 +122,21 @@ def acharId(row, tabela, tabelaEsus):
     Nome = row[paramColunaNomeEsus]
     Dn = row[paramColunaDataNascEsus]
     
-    if(type(Cpf) is float): #Checa se o CPF é NaN
+    if(type(Cpf) is not str): #Checa se o CPF é NaN
         Cpf = None
     if(Cpf is not None):
         filtro1 = tabela['CPF'] == Cpf.strip()
     else:
         filtro1 = False
     
-    if(type(Cns) is float): #Checa se o CNS é NaN
+    if(type(Cns) is not str): #Checa se o CNS é NaN
         Cns = None
     if(Cns is not None):
         filtro2 = tabela['CNS'] == Cns.strip()
     else:
         filtro2 = False
     
-    if(type(Nome) is float): #Checa se o Nome é NaN
+    if(type(Nome) is not str): #Checa se o Nome é NaN
         Nome = None
     if(Nome is not None and Dn is not None):
         filtro3 = tabela['Paciente'] == Nome.strip()
@@ -103,6 +147,11 @@ def acharId(row, tabela, tabelaEsus):
     
     notifs = tabela.where(filtro1 | filtro2 | (filtro3 & filtro4)).dropna(how='all') #Dataframe das notificações desse paciente
     Ids = notifs["COd. Paciente"].drop_duplicates().tolist() #Lista dos IDs encontrados deste paciente
+    if 316914 in Ids:
+        print("Encontrei o ID 316914!\nIndex: " + str(row.Index) + "\nCPF: " + (Cpf if Cpf is not None else "Vazio") + "\nCNS: " + (Cns if Cns is not None else "Vazio") + "\nNome: " + (Nome if Nome is not None else "Vazio") + "\nDN: " + (str(Dn) if Dn is not None else "Vazio") + "\nNotificações:\n")
+        for codNotif in notifs["Código"].tolist():
+            print(str(codNotif))
+        print("")
     for idAssessor in Ids: #Adiciona os IDs encontrados na coluna "IDS ASSESSOR", concatenando com vírgula onde há mais de 01 ID encontrado
         if tabelaEsus.at[row.Index, "IDS ASSESSOR"] == None:
             tabelaEsus.at[row.Index, "IDS ASSESSOR"] = str(int(idAssessor))
@@ -171,7 +220,7 @@ def limpaAcentos(tabela):
     tabela.rename(columns={"Cód. Paciente": "COd. Paciente", "Data da Notificação": "Data da NotificaCAo", "Situação": "SituaCAo"}, inplace=True) #Renomeia as colunas substituindo os caracteres acima citados
     return tabela
 
-def appendTabelaAuxiliar(tabela, row, motivo):
+def appendTabelaAuxiliar(tabelaIncorreta, row, motivo, tabelaEsus):
     """
     Parameters
     ----------
@@ -187,10 +236,10 @@ def appendTabelaAuxiliar(tabela, row, motivo):
     None.
 
     """    
-    aux = {"NUmero da NotificaCAo": row[paramColunaNumNotEsus], "Nome Completo": row[paramColunaNomeEsus], "CPF": row[paramColunaCpfEsus], "CNS": row[paramColunaCnsEsus], "Data de Nascimento": row[paramColunaDataNascEsus], "Nome Completo da MAe": row[paramColunaNomeMaeEsus], "Sexo": row[paramColunaSexoEsus], "Telefone de Contato": row[paramColunaTelContatoEsus], "Telefone Celular": row[paramColunaTelCelEsus], "CEP": row[paramColunaCepEsus], "Logradouro": row[paramColunaLogradouroEsus], "NUmero": row[paramColunaNumEndEsus], "Complemento": row[paramColunaCompEndEsus], "Bairro": row[paramColunaBairroEndEsus], "RaCa/Cor": row[paramColunaRacaEsus], "Data da NotificaCAo": row[paramColunaDataNotifEsus], "Data do inIcio dos sintomas": row[paramColunaDataSintomasEsus], "Notificante CNES": row[paramColunaCnesEsus], "Notificante Email": row[paramColunaEmailEsus], "Notificante Nome Completo": row[paramColunaNotifNomeEsus], "IDS ASSESSOR": row[paramColunaIdsEsus]} #Criação de novo Dict a ser inserido na lista de incorretos
+    aux = {"NUmero da NotificaCAo": row[paramColunaNumNotEsus], "Nome Completo": row[paramColunaNomeEsus], "CPF": row[paramColunaCpfEsus], "CNS": row[paramColunaCnsEsus], "Data de Nascimento": row[paramColunaDataNascEsus], "Nome Completo da MAe": row[paramColunaNomeMaeEsus], "Sexo": row[paramColunaSexoEsus], "Telefone de Contato": row[paramColunaTelContatoEsus], "Telefone Celular": row[paramColunaTelCelEsus], "CEP": row[paramColunaCepEsus], "Logradouro": row[paramColunaLogradouroEsus], "NUmero": row[paramColunaNumEndEsus], "Complemento": row[paramColunaCompEndEsus], "Bairro": row[paramColunaBairroEndEsus], "RaCa/Cor": row[paramColunaRacaEsus], "Data da NotificaCAo": row[paramColunaDataNotifEsus], "Data do inIcio dos sintomas": row[paramColunaDataSintomasEsus], "Notificante CNES": row[paramColunaCnesEsus], "Notificante Email": row[paramColunaEmailEsus], "Notificante Nome Completo": row[paramColunaNotifNomeEsus], "SITUACAO": tabelaEsus.at[row.Index, "SITUACAO"], "IDS ASSESSOR": tabelaEsus.at[row.Index, "IDS ASSESSOR"]} #Criação de novo Dict a ser inserido na lista de incorretos
     if motivo is not None:
         aux['Motivo'] = motivo #Adiciona o motivo ao Dict
-    tabela.append(aux) #Insere o Dict na lista
+    tabelaIncorreta.append(aux) #Insere o Dict na lista
 
 def formataImpressao(tabela, tipo):
     """
@@ -211,26 +260,9 @@ def formataImpressao(tabela, tipo):
     if tipo == "CORRETO": #Colunas em ordem caso seja tabela de Corretos
         return tabela[["NUmero da NotificaCAo", "IDS ASSESSOR", "Nome Completo", "Data de Nascimento", "CPF", "CNS", "Data da NotificaCAo", "Data do inIcio dos sintomas", "Nome Completo da MAe", "Sexo", "Telefone de Contato", "Telefone Celular", "CEP", "Logradouro", "NUmero", "Complemento", "Bairro", "RaCa/Cor", "Notificante CNES", "Notificante Email", "Notificante Nome Completo"]]
     elif tipo == "INCORRETO": #Colunas em ordem caso seja tabela de Incorretos (ou seja, com adição do motivo ao final)
-        return tabela[["NUmero da NotificaCAo", "IDS ASSESSOR", "Nome Completo", "Data de Nascimento", "CPF", "CNS", "Data da NotificaCAo", "Data do inIcio dos sintomas",  "Nome Completo da MAe", "Sexo", "Telefone de Contato", "Telefone Celular", "CEP", "Logradouro", "NUmero", "Complemento", "Bairro", "RaCa/Cor", "Notificante CNES", "Notificante Email", "Notificante Nome Completo", "Motivo"]]
+        return tabela[["NUmero da NotificaCAo", "IDS ASSESSOR", "Nome Completo", "Data de Nascimento", "CPF", "CNS", "Data da NotificaCAo", "Data do inIcio dos sintomas",  "Nome Completo da MAe", "Sexo", "Telefone de Contato", "Telefone Celular", "CEP", "Logradouro", "NUmero", "Complemento", "Bairro", "RaCa/Cor", "Notificante CNES", "Notificante Email", "Notificante Nome Completo", "SITUACAO", "Motivo"]]
     else: #A mesma tabela caso o parâmetro "Tipo" não tenha um dos valores preconizados
         return tabela
-
-# def descobreSituacao(tabela, row):
-#     if row[paramColunaResultadoPCREsus] == "Positivo" or (pd.isnull(row[paramColunaResultadoPCREsus]) and (row[paramColunaResultadoTotaisEsus] == "Reagente" or row[paramColunaResultadoIgaEsus] == "Reagente" or row[paramColunaResultadoPCREsus] == "Reagente")):
-#         tabela.at[row.Index, "SITUACAO"] = "POSITIVO"
-#         return "POSITIVO"
-#     if row[paramColunaResultadoPCREsus] == "Negativo" or (pd.isnull(row[paramColunaResultadoPCREsus]) and (row[paramColunaResultadoTotaisEsus] == "NAo Reagente" or row[paramColunaResultadoIgaEsus] == "NAo Reagente" or row[paramColunaResultadoPCREsus] == "NAo Reagente")):
-#         tabela.at[row.Index, "SITUACAO"] = "NEGATIVO"
-#         return "NEGATIVO"
-#     if(pd.isnull(row[paramColunaResultadoPCREsus]) and pd.isnull(row[paramColunaResultadoTotaisEsus]) and pd.isnull(row[paramColunaResultadoIgaEsus]) and pd.isnull(row[paramColunaResultadoPCREsus])):
-#         if(row[paramColunaClassifFinalEsus] != "Descartado"):
-#             tabela.at[row.Index, "SITUACAO"] = "SUSPEITO"
-#             return "SUSPEITO"
-#         else:
-#             tabela.at[row.Index, "SITUACAO"] = "DESCARTADO"
-#             return "DESCARTADO"
-#     tabela.at[row.Index, "SITUACAO"] = "SEM SITUACAO"
-#     return "SEM SITUACAO"
 
 def descobreSituacao(tabela, row):
     """
@@ -301,11 +333,11 @@ def trataSuspeito(row, notifAssessor, tabela, tabelaIncorreta):
 
     """
     if "CONFIRMADO" in notifAssessor["SituaCAo"].values: #Se houver alguma notificação confirmada no Assessor, não é suspeita.
-        appendTabelaAuxiliar(tabelaIncorreta, row, "CONFIRMADO")
+        appendTabelaAuxiliar(tabelaIncorreta, row, "CONFIRMADO", tabela)
         tabela.drop(row.Index, inplace=True)
         return
     if "SUSPEITA" in notifAssessor["SituaCAo"].values: #Se houver alguma notificação suspeita no Assessor, não é nova suspeita
-        appendTabelaAuxiliar(tabelaIncorreta, row, "SUSPEITO EM ABERTO")
+        appendTabelaAuxiliar(tabelaIncorreta, row, "SUSPEITO EM ABERTO", tabela)
         tabela.drop(row.Index, inplace=True)
         return
     if "NEGATIVO" in notifAssessor["SituaCAo"].values: #Se houver alguma notificação negativa no Assessor, verifica o parâmetro de data
@@ -314,7 +346,7 @@ def trataSuspeito(row, notifAssessor, tabela, tabelaIncorreta):
             dataNotifAssessor = rowNegativo[paramColunaDataNotifAssessor]
             dataNotifEsus = row[paramColunaDataNotifEsus]
             if dataNotifAssessor >= dataNotifEsus - timedelta(days=paramDiasNegativo): #Se a Data da Notificação no Assessor for (paramDiasNegativo) dias antes ou qualquer quantidade de dias depois da Notificação no eSUS, não considera suspeita
-                appendTabelaAuxiliar(tabelaIncorreta, row, "NEGATIVO DENTRO DO PERIODO")
+                appendTabelaAuxiliar(tabelaIncorreta, row, "NEGATIVO DENTRO DO PERIODO", tabela)
                 tabela.drop(row.Index, inplace=True)
                 return
     if "DESCARTADO" in notifAssessor["SituaCAo"].values: #Mesma regra de negativo
@@ -323,7 +355,7 @@ def trataSuspeito(row, notifAssessor, tabela, tabelaIncorreta):
             dataNotifAssessor = rowDescartado[paramColunaDataNotifAssessor]
             dataNotifEsus = row[paramColunaDataNotifEsus]
             if dataNotifAssessor >= dataNotifEsus - timedelta(days=paramDiasNegativo):                
-                appendTabelaAuxiliar(tabelaIncorreta, row, "DESCARTADO DENTRO DO PERIODO")
+                appendTabelaAuxiliar(tabelaIncorreta, row, "DESCARTADO DENTRO DO PERIODO", tabela)
                 tabela.drop(row.Index, inplace=True)
                 return
 
@@ -346,7 +378,7 @@ def trataPositivo(row, notifAssessor, tabela, tabelaIncorreta):
 
     """
     if "CONFIRMADO" in notifAssessor["SituaCAo"].values: #Se houver alguma notificação confirmada no Assessor, não é novo Confirmado
-        appendTabelaAuxiliar(tabelaIncorreta, row, "CONFIRMADO")
+        appendTabelaAuxiliar(tabelaIncorreta, row, "CONFIRMADO", tabela)
         tabela.drop(row.Index, inplace=True)
         return
 
@@ -369,7 +401,7 @@ def trataNegativo(row, notifAssessor, tabela, tabelaIncorreta):
 
     """
     if "CONFIRMADO" in notifAssessor["SituaCAo"].values: #Se houver alguma notificação confirmada no Assessor, não é negativo
-        appendTabelaAuxiliar(tabelaIncorreta, row, "CONFIRMADO")
+        appendTabelaAuxiliar(tabelaIncorreta, row, "CONFIRMADO", tabela)
         tabela.drop(row.Index, inplace=True)
         return   
     if "NEGATIVO" in notifAssessor["SituaCAo"].values: #Se houver alguma notificação negativo no Assessor, verifica parâmetro de data
@@ -378,7 +410,7 @@ def trataNegativo(row, notifAssessor, tabela, tabelaIncorreta):
             dataNotifAssessor = rowNegativo[paramColunaDataNotifAssessor]
             dataNotifEsus = row[paramColunaDataNotifEsus]
             if dataNotifAssessor >= dataNotifEsus - timedelta(days=paramDiasNegativo): #Se a Data da Notificação no Assessor for (paramDiasNegativo) dias antes ou qualquer quantidade de dias depois da Notificação no eSUS, não considera negativo
-                appendTabelaAuxiliar(tabelaIncorreta, row, "NEGATIVO DENTRO DO PERIODO")
+                appendTabelaAuxiliar(tabelaIncorreta, row, "NEGATIVO DENTRO DO PERIODO", tabela)
                 tabela.drop(row.Index, inplace=True)
                 return
     if "DESCARTADO" in notifAssessor["SituaCAo"].values: #Mesma regra do negativo
@@ -387,9 +419,19 @@ def trataNegativo(row, notifAssessor, tabela, tabelaIncorreta):
             dataNotifAssessor = rowDescartado[paramColunaDataNotifAssessor]
             dataNotifEsus = row[paramColunaDataNotifEsus]
             if dataNotifAssessor >= dataNotifEsus - timedelta(days=paramDiasNegativo):
-                appendTabelaAuxiliar(tabelaIncorreta, row, "DESCARTADO DENTRO DO PERIODO")
+                appendTabelaAuxiliar(tabelaIncorreta, row, "DESCARTADO DENTRO DO PERIODO", tabela)
                 tabela.drop(row.Index, inplace=True)
                 return
+    if "SUSPEITA" in notifAssessor["SituaCAo"].values: #Vê se tem suspeita aberta para esse negativo
+        suspeitosAssessor = notifAssessor.where(notifAssessor["SituaCAo"] == "SUSPEITA").dropna(how='all')
+        for rowSuspeito in suspeitosAssessor.itertuples():
+            dataNotifAssessor = rowSuspeito[paramColunaDataNotifAssessor]
+            dataNotifEsus = row[paramColunaDataNotifEsus]
+            if dataNotifEsus >= dataNotifAssessor:
+                tabela.at[row.Index, "SITUACAO"] = "NEGATIVO C/ SUSPEITA"
+                return
+        tabela.at[row.Index, "SITUACAO"] = "NEGATIVO S/ SUSPEITA"
+        return        
         
 def converteFiltro(tabela, lblCnes, lblEmail, listaFiltro):
     """
@@ -465,9 +507,13 @@ def printTabela(nomeArquivo, tabelaCorreta, tabelaIncorreta):
         tabelaPos = formataImpressao(tabelaPos, "CORRETO")
         tabelaPos.to_excel(writer, "Positivos", index=False)    
         
-        tabelaNeg = tabelaCorreta.where(tabelaCorreta["SITUACAO"] == "NEGATIVO").dropna(how='all')
-        tabelaNeg = formataImpressao(tabelaNeg, "CORRETO")
-        tabelaNeg.to_excel(writer, "Negativos", index=False)
+        tabelaNegCSus = tabelaCorreta.where(tabelaCorreta["SITUACAO"] == "NEGATIVO C/ SUSPEITA").dropna(how='all')
+        tabelaNegCSus = formataImpressao(tabelaNegCSus, "CORRETO")
+        tabelaNegCSus.to_excel(writer, "Negativos com Suspeita", index=False)
+        
+        tabelaNegSSus = tabelaCorreta.where(tabelaCorreta["SITUACAO"] == "NEGATIVO S/ SUSPEITA").dropna(how='all')
+        tabelaNegSSus = formataImpressao(tabelaNegSSus, "CORRETO")
+        tabelaNegSSus.to_excel(writer, "Negativos sem Suspeita", index=False)
         
         tabelaInconc = tabelaCorreta.where(tabelaCorreta["SITUACAO"] == "INCONCLUSIVO").dropna(how='all')
         tabelaInconc = formataImpressao(tabelaInconc, "CORRETO")
@@ -477,6 +523,7 @@ def printTabela(nomeArquivo, tabelaCorreta, tabelaIncorreta):
         tabelaIncorreta.to_excel(writer, "Incorretos", index=False)
 
 paramDiasAtras = 16 #Parâmetro que define quantos dias atrás ele considera na planilha de suspeitos e monitoramento (ex: notificações de até X dias atrás serão analisadas, antes disso serão ignoradas)
+paramDiasSuspeitos = 15 #Parâmetro que define quantos dias atrás uma notificacao de suspeita deve ser considerada "a mesma" notificacao. Acima desse parâmetro deve ser considerada uma nova notificacao
 paramDiasNegativo = 5 #Parâmetro que define quantos dias atrás uma notificacao de negativo deve ser considerada "a mesma" notificacao. Acima desse parâmetro deve ser considerada uma nova notificacao (agora também usada para descartados)
 
 paramColunaNumNotEsus = 1
@@ -524,6 +571,7 @@ mapOpcaoToUnidade["3"] = "hans"
 mapOpcaoToUnidade["4"] = "int"
 mapOpcaoToUnidade["5"] = "ext"
 
+paramColunaIdAssessor = 2
 paramColunaDataNotifAssessor = 11 #Parâmetro igual ao paramColunaDataNotifEsus porém para o Assessor
 paramDataAtual = datetime.today() #Parâmetro que define qual é a data atual para o script fazer a comparacao dos dias para trás (padrão: datetime.today() = data atual do sistema)
 
@@ -581,7 +629,7 @@ if flagsUnidades['hans']:
     filtroHans = converteFiltro(tabelaTotalEsus, 'Notificante CNES', 'Notificante Email', listaFiltroHans)
     filtrosValidos.append(filtroHans)
 if flagsUnidades['ext']:
-    listaFiltroExternas = {"cnes": [9344209, 2052970, 9567771, 9371508, 3549208, 7909837, 3142531, 5124700, 6316344, 419907, 2074176],
+    listaFiltroExternas = {"cnes": [9344209, 2052970, 9567771, 9371508, 3549208, 7909837, 3142531, 5124700, 6316344, 419907, 2074176, 7653166],
                       "email": ["maicon.douglas19@hotmail.com", "yaah_cardoso@hotmail.com", "robertamap@yahoo.com.br", "barretos2@dpsp.com.br", "marcela@ltaseguranca.com.br"]}
     filtroExternas = converteFiltro(tabelaTotalEsus, 'Notificante CNES', 'Notificante Email', listaFiltroExternas)
     filtrosValidos.append(filtroExternas)
@@ -607,7 +655,12 @@ print("Terminei de ler a tabela do eSUS aos " + str(endReadEsus - start) + " seg
 
 #Puxa a tabela do Assessor
 tabelaTotalAssessor = pd.read_excel("lista total assessor.xlsx", dtype={'CPF': np.unicode_, 'CNS': np.unicode_}).sort_values(by=["Cód. Paciente", "Data da Notificação"]) #Lê a tabela do Assessor e classifica por ID do paciente e Data da Notificação
-tabelaTotalAssessor['CPF'], tabelaTotalAssessor['CNS'] = formataCpfCns(tabelaTotalAssessor['CPF'], tabelaTotalAssessor['CNS']) #Formata as colunas de CPF e CNS baseado na regra de negócio
+tabelaTotalAssessor = realmenteSuspeitos(tabelaTotalAssessor)
+
+endRealmenteSuspeitos = timer()
+print("Terminei de tirar os 'Realmente Suspeitos' aos " + str(endRealmenteSuspeitos - start) + " segundos.")
+
+#tabelaTotalAssessor['CPF'], tabelaTotalAssessor['CNS'] = formataCpfCns(tabelaTotalAssessor['CPF'], tabelaTotalAssessor['CNS']) #Formata as colunas de CPF e CNS baseado na regra de negócio
 tabelaTotalAssessor = limpaAcentos(tabelaTotalAssessor) #Limpa acentos e 'ç' da tabela do Assessor
 
 endReadAssessor = timer()
@@ -678,63 +731,3 @@ if flagsUnidades['int']:
     filtroInternasInc = converteFiltro(tabelaTotalEsusIncorreta, 'Notificante CNES', 'Notificante Email', listaFiltroInternas)
     tabelaInternasIncorreta = tabelaTotalEsusIncorreta.where(filtroInternasInc).dropna(how='all')
     printTabela("Internas", tabelaInternas, tabelaInternasIncorreta)
-
-# with pd.ExcelWriter('Santa Casa ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerStc:
-#     tabelaStcPos = tabelaStc.where(tabelaStc["SITUACAO"] == "POSITIVO").dropna(how='all')
-#     tabelaStcPos = formataImpressao(tabelaStcPos, "CORRETO")
-#     tabelaStcPos.to_excel(writerStc, "Positivos", index=False)    
-    
-#     tabelaStcNeg = tabelaStc.where(tabelaStc["SITUACAO"] == "NEGATIVO").dropna(how='all')
-#     tabelaStcNeg = formataImpressao(tabelaStcNeg, "CORRETO")
-#     tabelaStcNeg.to_excel(writerStc, "Negativos", index=False)
-        
-#     tabelaStcIncorreta = formataImpressao(tabelaStcIncorreta, "INCORRETO")
-#     tabelaStcIncorreta.to_excel(writerStc, "Incorretos", index=False)
-    
-# with pd.ExcelWriter('Pio XII ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerPio:
-#     tabelaPioPos = tabelaPio.where(tabelaPio["SITUACAO"] == "POSITIVO").dropna(how='all')
-#     tabelaPioPos = formataImpressao(tabelaPioPos, "CORRETO")
-#     tabelaPioPos.to_excel(writerPio, "Positivos", index=False)
-    
-#     tabelaPioNeg = tabelaPio.where(tabelaPio["SITUACAO"] == "NEGATIVO").dropna(how='all')
-#     tabelaPioNeg = formataImpressao(tabelaPioNeg, "CORRETO")
-#     tabelaPioNeg.to_excel(writerPio, "Negativos", index=False)
-        
-#     tabelaPioIncorreta = formataImpressao(tabelaPioIncorreta, "INCORRETO")
-#     tabelaPioIncorreta.to_excel(writerPio, "Incorretos", index=False)
-    
-# with pd.ExcelWriter('HANS ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerHans:
-#     tabelaHansPos = tabelaHans.where(tabelaHans["SITUACAO"] == "POSITIVO").dropna(how='all')
-#     tabelaHansPos = formataImpressao(tabelaHansPos, "CORRETO")
-#     tabelaHansPos.to_excel(writerHans, "Positivos", index=False)
-    
-#     tabelaHansNeg = tabelaHans.where(tabelaHans["SITUACAO"] == "NEGATIVO").dropna(how='all')
-#     tabelaHansNeg = formataImpressao(tabelaHansNeg, "CORRETO")
-#     tabelaHansNeg.to_excel(writerHans, "Negativos", index=False)
-        
-#     tabelaHansIncorreta = formataImpressao(tabelaHansIncorreta, "INCORRETO")
-#     tabelaHansIncorreta.to_excel(writerHans, "Incorretos", index=False)
-    
-# with pd.ExcelWriter('Externas ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerExternas:
-#     tabelaExternasPos = tabelaExternas.where(tabelaExternas["SITUACAO"] == "POSITIVO").dropna(how='all')
-#     tabelaExternasPos = formataImpressao(tabelaExternasPos, "CORRETO")
-#     tabelaExternasPos.to_excel(writerExternas, "Positivos", index=False)
-    
-#     tabelaExternasNeg = tabelaExternas.where(tabelaExternas["SITUACAO"] == "NEGATIVO").dropna(how='all')
-#     tabelaExternasNeg = formataImpressao(tabelaExternasNeg, "CORRETO")
-#     tabelaExternasNeg.to_excel(writerExternas, "Negativos", index=False)
-        
-#     tabelaExternasIncorreta = formataImpressao(tabelaExternasIncorreta, "INCORRETO")
-#     tabelaExternasIncorreta.to_excel(writerExternas, "Incorretos", index=False)
-    
-# with pd.ExcelWriter('Internas ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writerInternas:
-#     tabelaInternasPos = tabelaInternas.where(tabelaInternas["SITUACAO"] == "POSITIVO").dropna(how='all')
-#     tabelaInternasPos = formataImpressao(tabelaInternasPos, "CORRETO")
-#     tabelaInternasPos.to_excel(writerInternas, "Positivos", index=False)
-    
-#     tabelaInternasNeg = tabelaInternas.where(tabelaInternas["SITUACAO"] == "NEGATIVO").dropna(how='all')
-#     tabelaInternasNeg = formataImpressao(tabelaInternasNeg, "CORRETO")
-#     tabelaInternasNeg.to_excel(writerInternas, "Negativos", index=False)
-        
-#     tabelaInternasIncorreta = formataImpressao(tabelaInternasIncorreta, "INCORRETO")
-#     tabelaInternasIncorreta.to_excel(writerInternas, "Incorretos", index=False)
