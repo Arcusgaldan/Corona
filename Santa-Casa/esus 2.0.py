@@ -39,6 +39,12 @@ def realmenteSuspeitos(tabelaAssessor):
     print("Iniciando 'Realmente Suspeitos'...")
     tabelaTotal = tabelaAssessor
     tabelaSuspeitos = tabelaTotal.where((tabelaTotal["Data da Notificação"] >= datetime.strptime('01-06-2020', '%d-%m-%Y')) & (tabelaTotal["Situação"] == "SUSPEITA")).dropna(how='all').sort_values(by=["Cód. Paciente", "Data da Notificação"]).drop_duplicates("Cód. Paciente", ignore_index=True)
+    startProcessamento = timer()
+    porcAtual = 0
+    somaVeloc = 0
+    countLinhas = 0
+    qtdNotif = len(tabelaSuspeitos)
+    porcentil = round(qtdNotif / 100)
     for row in tabelaSuspeitos.itertuples(): #Passando por cada suspeito
         situacoes = tabelaTotal.where(tabelaTotal["Cód. Paciente"] == row[paramColunaIdAssessor]).dropna(how='all') #Pega apenas a situação e data de notificação de cada registro que o suspeito possui na lista total
         flag = False
@@ -51,14 +57,26 @@ def realmenteSuspeitos(tabelaAssessor):
                     tabelaSuspeitos.drop(row.Index, inplace=True) #Tira o suspeito da lista de suspeitos
                     flag = True
                     break
-            if flag:
-                continue
-        if "NEGATIVO" in situacoes["Situação"].values: #Se houver um negativo nas situações
-            negativosAssessor = situacoes.where(situacoes["Situação"] == "NEGATIVO").dropna(how='all')
-            for rowNegativo in negativosAssessor.itertuples():                
-                if rowNegativo[paramColunaDataNotifAssessor] >= (row[paramColunaDataNotifAssessor] - timedelta(days=2)):                    
-                    tabelaSuspeitos.drop(row.Index, inplace=True) #Tira o suspeito da lista de suspeitos
-                    break    
+            if not flag:
+                if "NEGATIVO" in situacoes["Situação"].values: #Se houver um negativo nas situações
+                    negativosAssessor = situacoes.where(situacoes["Situação"] == "NEGATIVO").dropna(how='all')
+                    for rowNegativo in negativosAssessor.itertuples():                
+                        if rowNegativo[paramColunaDataNotifAssessor] >= (row[paramColunaDataNotifAssessor] - timedelta(days=2)):                    
+                            tabelaSuspeitos.drop(row.Index, inplace=True) #Tira o suspeito da lista de suspeitos
+                            break
+        
+        countLinhas += 1
+        if countLinhas >= (porcAtual + 1) * porcentil:
+            porcAtual += 1
+            os.system('cls')
+            porcTimer = timer()
+            tempoAtual = porcTimer - startProcessamento
+            velocEstimada = countLinhas / tempoAtual
+            somaVeloc += velocEstimada
+            velocMedia = somaVeloc / porcAtual
+            tempoEstimadoTotal = (qtdNotif - countLinhas) / velocEstimada
+            stringTempoEstimado = segundoEmHora(tempoEstimadoTotal)
+            print("REALMENTE SUSPEITOS\nConcluido: " + str(porcAtual) + "% aos " + "{:.0f}".format(tempoAtual) + " segundos (desde o início do laço).\n" + str(countLinhas) + " linhas lidas de " + str(qtdNotif) + " total.\nVelocidade estimada: " + "{:.2f}".format(velocEstimada) + " linhas por segundo.\nVelocidade media: " + "{:.2f}".format(velocMedia) + " linhas por segundo.\nTempo estimado: " + stringTempoEstimado + " para conlusão\n\n")
     
     tabelaTotal = tabelaTotal.where(tabelaTotal["Situação"] != "SUSPEITA").dropna(how='all')
     tabelaTotal = pd.concat([tabelaTotal, tabelaSuspeitos])
@@ -147,11 +165,11 @@ def acharId(row, tabela, tabelaEsus):
     
     notifs = tabela.where(filtro1 | filtro2 | (filtro3 & filtro4)).dropna(how='all') #Dataframe das notificações desse paciente
     Ids = notifs["COd. Paciente"].drop_duplicates().tolist() #Lista dos IDs encontrados deste paciente
-    if 316914 in Ids:
-        print("Encontrei o ID 316914!\nIndex: " + str(row.Index) + "\nCPF: " + (Cpf if Cpf is not None else "Vazio") + "\nCNS: " + (Cns if Cns is not None else "Vazio") + "\nNome: " + (Nome if Nome is not None else "Vazio") + "\nDN: " + (str(Dn) if Dn is not None else "Vazio") + "\nNotificações:\n")
-        for codNotif in notifs["Código"].tolist():
-            print(str(codNotif))
-        print("")
+    # if 316914 in Ids:
+    #     print("Encontrei o ID 316914!\nIndex: " + str(row.Index) + "\nCPF: " + (Cpf if Cpf is not None else "Vazio") + "\nCNS: " + (Cns if Cns is not None else "Vazio") + "\nNome: " + (Nome if Nome is not None else "Vazio") + "\nDN: " + (str(Dn) if Dn is not None else "Vazio") + "\nNotificações:\n")
+    #     for codNotif in notifs["Código"].tolist():
+    #         print(str(codNotif))
+    #     print("")
     for idAssessor in Ids: #Adiciona os IDs encontrados na coluna "IDS ASSESSOR", concatenando com vírgula onde há mais de 01 ID encontrado
         if tabelaEsus.at[row.Index, "IDS ASSESSOR"] == None:
             tabelaEsus.at[row.Index, "IDS ASSESSOR"] = str(int(idAssessor))
@@ -430,8 +448,8 @@ def trataNegativo(row, notifAssessor, tabela, tabelaIncorreta):
             if dataNotifEsus >= dataNotifAssessor:
                 tabela.at[row.Index, "SITUACAO"] = "NEGATIVO C/ SUSPEITA"
                 return
-        tabela.at[row.Index, "SITUACAO"] = "NEGATIVO S/ SUSPEITA"
-        return        
+    tabela.at[row.Index, "SITUACAO"] = "NEGATIVO S/ SUSPEITA"
+    return
         
 def converteFiltro(tabela, lblCnes, lblEmail, listaFiltro):
     """
@@ -524,7 +542,7 @@ def printTabela(nomeArquivo, tabelaCorreta, tabelaIncorreta):
 
 paramDiasAtras = 16 #Parâmetro que define quantos dias atrás ele considera na planilha de suspeitos e monitoramento (ex: notificações de até X dias atrás serão analisadas, antes disso serão ignoradas)
 paramDiasSuspeitos = 15 #Parâmetro que define quantos dias atrás uma notificacao de suspeita deve ser considerada "a mesma" notificacao. Acima desse parâmetro deve ser considerada uma nova notificacao
-paramDiasNegativo = 5 #Parâmetro que define quantos dias atrás uma notificacao de negativo deve ser considerada "a mesma" notificacao. Acima desse parâmetro deve ser considerada uma nova notificacao (agora também usada para descartados)
+paramDiasNegativo = 15 #Parâmetro que define quantos dias atrás uma notificacao de negativo deve ser considerada "a mesma" notificacao. Acima desse parâmetro deve ser considerada uma nova notificacao (agora também usada para descartados)
 
 paramColunaNumNotEsus = 1
 paramColunaTipoTesteEsus = 4

@@ -30,7 +30,7 @@ def appendTabelaAuxiliar(tabela, row, motivo):
     aux = {"ID DISP.": row[paramColunaIdDispensacao], "DATA DISP.": row[paramColunaDataDispensacao], "COD UNIDADE": row[paramColunaCodUnidadeDispensacao], "UNIDADE": row[paramColunaNomeUnidadeDispensacao], "QTD DISP.": row[paramColunaQtdDispensacao], "ID. PACIENTE": row[paramColunaPacienteDispensacao]}
     if motivo is not None:
         aux['Motivo'] = motivo
-    tabela.append(aux)
+    tabela.append(aux)    
 
 paramColunaIdDispensacao = 1
 paramColunaDataDispensacao = 2
@@ -43,7 +43,7 @@ paramColunaDataResultadoAssessor = 13
 paramColunaSituacaoAgravoAssessor = 14
 paramColunaCodAgravoAssessor = 1
 
-paramDiasResultado = 3
+paramDiasResultado = 6
 paramDiasAtendimento = 0
 
 listaTotalAssessor = pd.read_excel("lista total assessor.xlsx")
