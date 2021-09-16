@@ -11,7 +11,7 @@ from datetime import timedelta
 from datetime import datetime
 import numpy as np
 
-tabelaTotal = pd.read_excel("lista total.xlsx", dtype={'CPF': np.unicode_, 'CNS': np.unicode_, 'Nome Completo': np.unicode_}).sort_values(by="Cód. Paciente", ignore_index=True) #Lista total dos agravos de março até hoje. Organizado por ID do paciente, index de 0 a n-1
+tabelaTotal = pd.read_excel("lista total.xlsx", dtype={'CPF': np.unicode_, 'CNS': np.unicode_}).sort_values(by="Cód. Paciente", ignore_index=True) #Lista total dos agravos de março até hoje. Organizado por ID do paciente, index de 0 a n-1
 #tabelaSuspeitos = pd.read_excel("suspeitos junho.xls").sort_values(by=["Cód. Paciente", "Data da Notificação"]).drop_duplicates("Cód. Paciente", ignore_index=True) #Lista de agravos suspeitos de junho até hoje. Organizado por ID do paciente e Data de Notificação. Removendo as duplicatas por ID, mantendo a da data mais antiga. Index do 0 a n-1
 teste = datetime.strptime('01-06-2020', '%d-%m-%Y')
 tabelaSuspeitos = tabelaTotal.where(tabelaTotal["Data da Notificação"] >= datetime.strptime('01-06-2020', '%d-%m-%Y'))
