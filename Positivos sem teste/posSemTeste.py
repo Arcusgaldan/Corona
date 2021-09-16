@@ -79,9 +79,20 @@ def segundoEmHora(segundos):
     stringTempo = str(horas) + ":" + str(minutos) + ":" + str(segundos)
     return stringTempo
 
+def removerAnteriores(row):
+    notifsAnteriores = listaAssessor.where((listaAssessor['Cód. Paciente'] == row[paramColunaIdAssessor]) & (listaAssessor['Data da Notificação'] < row[paramColunaDataNotifAssessor])).dropna(how='all')
+    if notifsAnteriores.empty:
+        return
+    for notif in notifsAnteriores.itertuples():
+        # if notif[paramColunaNotifAssessor] == row[paramColunaNotifAssessor]:
+        #     continue
+        appendTabelaAuxiliar(templateIncorreto, listaAssessorIncorreta, notif, {'Motivo': 'Notificação posterior removida: ' + str(row[paramColunaNotifAssessor])})
+        listaAssessor.drop(notif.Index, inplace=True)
+        break
+
 paramDataAtual = datetime.today()
 paramDataInicioTestes = "01/04/2021"
-paramIntervaloDispAgravo = 7
+paramIntervaloDispAgravo = 14
 
 paramColunaNotifAssessor = 1
 paramColunaIdAssessor = 2
@@ -97,7 +108,7 @@ listaAssessor = listaAssessor.where((listaAssessor['Situação'] == "CONFIRMADO"
 
 listaDisp = pd.read_excel("lista total dispensacoes.xlsx")
 listaDisp = listaDisp.where(listaDisp['ID DISP.'] != "ID DISP.").dropna(how='all')
-listaDisp["DATA DISP."] = pd.to_datetime(listaDisp["DATA DISP."])
+listaDisp["DATA DISP."] = pd.to_datetime(listaDisp["DATA DISP."], dayfirst=True)
 
 listaAssessorIncorreta = []
 
@@ -109,14 +120,17 @@ startProcessamento = timer()
 
 print("Iniciando processamento...")
 for row in listaAssessor.itertuples():
+    print("Entrei no laço de agravos com o paciente " + str(row[paramColunaIdAssessor]))
     dispPaciente = listaDisp.where(listaDisp['ID. PACIENTE'] == row[paramColunaIdAssessor]).dropna(how='all')
     if not dispPaciente.empty:
         for rowDisp in dispPaciente.itertuples():
             dataAgravo = row[paramColunaDataNotifAssessor]
             dataDisp = rowDisp[paramColunaDataDispensacao]
+            print("Achei a dispensação " + str(rowDisp[paramColunaIdDispensacao]) + "\nDiferença de dias: " + str(abs((dataAgravo - dataDisp).days)))
             if abs((dataAgravo - dataDisp).days) <= paramIntervaloDispAgravo:
                 appendTabelaAuxiliar(templateIncorreto, listaAssessorIncorreta, row, {'Motivo': 'Dispensação com menos de ' + str(paramIntervaloDispAgravo) + ' dias de diferença', 'ID. DISP': rowDisp[paramColunaIdDispensacao], 'DATA DISP.': rowDisp[paramColunaDataDispensacao]})
                 listaAssessor.drop(row.Index, inplace=True)
+                removerAnteriores(row)
                 break
     countLinhas, porcAtual, somaVeloc = loading(qtdNotif, countLinhas, porcAtual, somaVeloc, startProcessamento)
     

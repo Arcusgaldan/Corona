@@ -648,7 +648,7 @@ else:
     for opcao in opcoes:
         flagsUnidades[mapOpcaoToUnidade[opcao]] = True
         
-print("Executar Realmente Suspeitos? (S/N): ")
+print("Executar Realmente Suspeitos? (S/n): ", end="")
 tiraSuspeitas = input().strip()
 
 print("Iniciando Processamento...")
