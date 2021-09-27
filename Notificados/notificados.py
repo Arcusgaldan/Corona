@@ -119,6 +119,7 @@ tabelaNotificadosIncorretos = []
 countLinhas = 0
 porcAtual = 0
 somaVeloc = 0
+qtdNotif = len(tabelaAssessorDias)
 startProcessamento = timer()
 lastPct = None
 
@@ -148,7 +149,7 @@ for row in tabelaAssessorDias.itertuples():
                 pivot = rowNotif
     
     lastPct = row[paramColunaIdAssessor]
-    countLinhas, porcAtual, somaVeloc = loading(tabelaAssessorDias, countLinhas, porcAtual, somaVeloc, startProcessamento)
+    countLinhas, porcAtual, somaVeloc = loading(qtdNotif, countLinhas, porcAtual, somaVeloc, startProcessamento)
         
 with pd.ExcelWriter('Notificados ' + paramDataAtual.strftime("%d.%m") + '.xlsx') as writer:    
     tabelaAssessorDias.to_excel(writer, "Notificados", index=False)
